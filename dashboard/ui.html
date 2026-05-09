@@ -1,0 +1,1340 @@
+html
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAPV — Kubernetes Attack Path Visualizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0:#070b12; --bg1:#0d1420; --bg2:#111a2d; --bg3:#162038;
+  --surface:#1a2540; --surface2:#1f2d4a;
+  --border:rgba(99,140,255,0.12); --border2:rgba(99,140,255,0.22);
+  --accent:#638cff; --accent-glow:rgba(99,140,255,0.18);
+  --red:#ff4d6a; --red-bg:rgba(255,77,106,0.10); --red-border:rgba(255,77,106,0.28);
+  --amber:#f5a623; --amber-bg:rgba(245,166,35,0.10); --amber-border:rgba(245,166,35,0.28);
+  --green:#2dcc8f; --green-bg:rgba(45,204,143,0.10); --green-border:rgba(45,204,143,0.28);
+  --purple:#a78bfa; --purple-bg:rgba(167,139,250,0.10);
+  --teal:#22d3ee;
+  --text0:#e8edf8; --text1:#a8b4cc; --text2:#6070a0; --text3:#3a4a70;
+  --mono:'JetBrains Mono',monospace; --sans:'Syne',sans-serif;
+  --radius:8px; --radius-lg:12px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg0);color:var(--text0);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:1000}
+
+/* Layout */
+.shell{display:grid;grid-template-columns:220px 1fr;grid-template-rows:52px 1fr;height:100vh;overflow:hidden}
+
+/* Topbar */
+.topbar{grid-column:1/-1;background:var(--bg1);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:relative;z-index:10}
+.topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.5}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-icon{width:28px;height:28px;border:1.5px solid var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center}
+.brand-icon::before{content:'';width:10px;height:10px;background:var(--accent);border-radius:2px;box-shadow:0 0 10px var(--accent)}
+.brand-name{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text0);letter-spacing:.12em}
+.brand-sub{font-family:var(--mono);font-size:9px;color:var(--accent);letter-spacing:.2em;text-transform:uppercase;margin-top:1px}
+.topbar-badges{display:flex;align-items:center;gap:8px}
+.topbar-badge{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:4px;letter-spacing:.06em;font-weight:500}
+.tb-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+.tb-amber{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+.tb-purple{background:var(--purple-bg);color:var(--purple);border:1px solid rgba(167,139,250,.28)}
+.topbar-meta{font-family:var(--mono);font-size:10px;color:var(--text2);display:flex;align-items:center;gap:16px}
+.topbar-meta span{display:flex;align-items:center;gap:5px}
+.dot-live{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s ease-in-out infinite;box-shadow:0 0 6px var(--green)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Sidebar */
+.sidebar{background:var(--bg1);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;padding:16px 0}
+.sidebar::-webkit-scrollbar{width:3px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.sidebar-section{padding:0 14px;margin-bottom:4px}
+.sidebar-label{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--text3);text-transform:uppercase;padding:10px 8px 6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;cursor:pointer;transition:all .15s;position:relative;font-size:13px;color:var(--text1);margin-bottom:1px}
+.nav-item:hover{background:var(--surface);color:var(--text0)}
+.nav-item.active{background:var(--surface);color:var(--text0);font-weight:600}
+.nav-item.active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:2px;background:var(--accent);border-radius:2px;box-shadow:0 0 8px var(--accent)}
+.nav-icon{width:16px;height:16px;flex-shrink:0;opacity:.7}
+.nav-item.active .nav-icon{opacity:1}
+.nav-count{margin-left:auto;font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700}
+.nc-red{background:var(--red-bg);color:var(--red)}
+.nc-amber{background:var(--amber-bg);color:var(--amber)}
+.nc-accent{background:var(--accent-glow);color:var(--accent)}
+.nc-green{background:var(--green-bg);color:var(--green)}
+.sidebar-footer{margin-top:auto;padding:12px 14px;border-top:1px solid var(--border)}
+.cluster-info{font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.8}
+.cluster-info strong{color:var(--accent);font-weight:500}
+
+/* Main */
+.main{overflow-y:auto;padding:24px;background:var(--bg0);display:flex;flex-direction:column;gap:20px}
+.main::-webkit-scrollbar{width:4px}
+.main::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.panel{display:none;flex-direction:column;gap:20px}
+.panel.active{display:flex}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.panel.active>*{animation:fadeInUp .3s ease both}
+.panel.active>*:nth-child(1){animation-delay:.00s}
+.panel.active>*:nth-child(2){animation-delay:.05s}
+.panel.active>*:nth-child(3){animation-delay:.10s}
+.panel.active>*:nth-child(4){animation-delay:.15s}
+.panel.active>*:nth-child(5){animation-delay:.20s}
+
+/* Page header */
+.page-header{display:flex;align-items:center;justify-content:space-between}
+.page-title{font-size:20px;font-weight:800;color:var(--text0);letter-spacing:-.01em}
+.page-subtitle{font-family:var(--mono);font-size:11px;color:var(--text2);margin-top:2px}
+
+/* Metric cards */
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.metric-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;position:relative;overflow:hidden;transition:border-color .2s}
+.metric-card:hover{border-color:var(--border2)}
+.metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.mc-red::before{background:linear-gradient(90deg,var(--red),transparent)}
+.mc-amber::before{background:linear-gradient(90deg,var(--amber),transparent)}
+.mc-green::before{background:linear-gradient(90deg,var(--green),transparent)}
+.mc-blue::before{background:linear-gradient(90deg,var(--accent),transparent)}
+.metric-label{font-family:var(--mono);font-size:10px;color:var(--text2);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}
+.metric-value{font-size:30px;font-weight:800;line-height:1;margin-bottom:4px}
+.metric-sub{font-family:var(--mono);font-size:10px;color:var(--text2)}
+.mv-red{color:var(--red)} .mv-amber{color:var(--amber)} .mv-green{color:var(--green)} .mv-accent{color:var(--accent)}
+
+/* Layout helpers */
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+/* Cards */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;transition:border-color .2s}
+.card:hover{border-color:var(--border2)}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.card-title{font-size:13px;font-weight:700;color:var(--text0)}
+.card-subtitle{font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:2px}
+
+/* Badges */
+.badge{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.badge-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+.badge-amber{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+.badge-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+.badge-accent{background:var(--accent-glow);color:var(--accent);border:1px solid rgba(99,140,255,.3)}
+.badge-purple{background:var(--purple-bg);color:var(--purple);border:1px solid rgba(167,139,250,.3)}
+
+/* Attack path items */
+.path-item{border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+.path-item:last-child{margin-bottom:0}
+.path-item:hover{border-color:var(--border2);background:var(--bg3)}
+.path-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px}
+.pi-critical::before{background:var(--red);box-shadow:0 0 8px var(--red)}
+.pi-high::before{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.pi-medium::before{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.path-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.path-name{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text0)}
+.path-score{font-family:var(--mono);font-size:13px;font-weight:700}
+.ps-critical{color:var(--red)} .ps-high{color:var(--amber)} .ps-medium{color:var(--accent)}
+.path-chain{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.hop-node{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;background:var(--surface);border:1px solid var(--border2);color:var(--text1)}
+.hop-node.entry{border-color:var(--accent);color:var(--accent);background:rgba(99,140,255,.08)}
+.hop-node.pivot{border-color:var(--amber);color:var(--amber);background:rgba(245,166,35,.08)}
+.hop-node.crown{border-color:var(--red);color:var(--red);background:var(--red-bg)}
+.hop-arrow{color:var(--text3);font-size:10px}
+.path-meta{font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.cve-tag{color:var(--red);background:var(--red-bg);padding:1px 6px;border-radius:3px;border:1px solid var(--red-border);font-size:9px}
+
+/* Node rows */
+.node-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.node-row:last-child{border-bottom:none}
+.node-rank{font-family:var(--mono);font-size:10px;color:var(--text3);min-width:18px}
+.node-type-pill{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:3px;background:var(--surface);color:var(--text2);border:1px solid var(--border);white-space:nowrap;min-width:90px;text-align:center}
+.node-name-mono{font-family:var(--mono);font-size:12px;color:var(--text0);flex:1}
+.score-bar-wrap{width:80px;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
+.score-fill{height:100%;border-radius:2px}
+.risk-num{font-family:var(--mono);font-size:12px;font-weight:700;min-width:28px;text-align:right}
+.pr-score{font-family:var(--mono);font-size:10px;color:var(--text2);min-width:52px;text-align:right}
+
+/* Bar rows */
+.bar-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.bar-row:last-child{border-bottom:none}
+.bar-label{font-family:var(--mono);font-size:11px;color:var(--text0);min-width:90px;font-weight:600}
+.bar-wrap{flex:1;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width 1s cubic-bezier(.4,0,.2,1);width:0}
+.bar-val{font-family:var(--mono);font-size:11px;color:var(--text2);min-width:36px;text-align:right}
+
+/* Monte Carlo rows */
+.monte-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.monte-row:last-child{border-bottom:none}
+.monte-target{font-family:var(--mono);font-size:12px;color:var(--text0);min-width:155px}
+.prob-bar-wrap{flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.prob-fill{height:100%;border-radius:3px;transition:width 1.2s cubic-bezier(.4,0,.2,1);width:0}
+.prob-pct{font-family:var(--mono);font-size:14px;font-weight:700;min-width:44px;text-align:right}
+
+/* Algo summary rows */
+.algo-summary-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.algo-summary-row:last-child{border-bottom:none}
+.algo-tag{font-family:var(--mono);font-size:10px;font-weight:700;min-width:82px;padding-top:1px}
+.algo-finding{font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.7;flex:1}
+
+/* Cycle items */
+.cycle-item{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;position:relative;overflow:hidden}
+.cycle-item:last-child{margin-bottom:0}
+.cycle-item::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px}
+.ci-red::before{background:var(--red);box-shadow:0 0 8px var(--red)}
+.ci-amber::before{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.cycle-nodes{font-family:var(--mono);font-size:11px;color:var(--text0);margin-top:4px;line-height:1.6}
+
+/* Community */
+.community-block{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.community-block:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.community-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.community-name{font-size:12px;font-weight:700;color:var(--text0)}
+.comm-members{display:flex;flex-wrap:wrap;gap:5px}
+.comm-pill{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;display:flex;align-items:center;gap:4px}
+.comm-ns{font-size:9px;opacity:.6}
+.violation-note{font-family:var(--mono);font-size:10px;color:var(--red);margin-top:6px;padding:5px 8px;background:var(--red-bg);border-radius:4px;border:1px solid var(--red-border)}
+
+/* Sparklines */
+.sparkline-wrap{display:flex;align-items:flex-end;gap:2px;height:28px}
+.spark-bar{width:7px;border-radius:2px 2px 0 0;min-height:2px}
+
+/* Anomaly rows */
+.anomaly-row{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.anomaly-row:last-child{border-bottom:none}
+.anomaly-ring{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:700;flex-shrink:0}
+.anomaly-name{font-family:var(--mono);font-size:12px;color:var(--text0);margin-bottom:3px;font-weight:500}
+.anomaly-reason{font-family:var(--mono);font-size:10px;color:var(--text2)}
+
+/* GNN rows */
+.gnn-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.gnn-row:last-child{border-bottom:none}
+
+/* Temporal rows */
+.temp-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.temp-row:last-child{border-bottom:none}
+.temp-name{font-family:var(--mono);font-size:12px;color:var(--text0);min-width:145px}
+.temp-range{font-family:var(--mono);font-size:12px;font-weight:700;min-width:90px}
+.trend-pill{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:10px;font-weight:700;letter-spacing:.08em}
+
+/* Timeline */
+.timeline-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.timeline-item:last-child{border-bottom:none}
+.timeline-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;box-shadow:0 0 8px currentColor}
+.timeline-title{font-size:12px;font-weight:700;color:var(--text0);margin-bottom:3px;display:flex;align-items:center;gap:7px}
+.timeline-desc{font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6}
+
+/* Tabs */
+.tab-row{display:flex;border-bottom:1px solid var(--border);margin-bottom:14px}
+.tab-btn{font-family:var(--mono);font-size:11px;padding:8px 14px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;letter-spacing:.06em}
+.tab-btn:hover{color:var(--text1)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* Filter buttons */
+.filter-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.filter-btn{font-family:var(--mono);font-size:10px;padding:5px 12px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:transparent;color:var(--text2);letter-spacing:.06em;transition:all .15s}
+.filter-btn:hover{color:var(--text1);background:var(--surface)}
+.filter-btn.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
+
+/* Rec box */
+.rec-box{background:rgba(99,140,255,.06);border:1px solid rgba(99,140,255,.25);border-radius:var(--radius);padding:10px 14px;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--accent);line-height:1.6}
+.rec-box strong{color:var(--text0);font-weight:700}
+
+/* Chart wrapper */
+.chart-wrap{position:relative;width:100%}
+
+/* Graph viz */
+#graph-svg{width:100%;height:520px;display:block;background:var(--bg1);cursor:grab}
+#node-tooltip{display:none;position:absolute;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;pointer-events:none;z-index:100;min-width:200px}
+.tt-name{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--text0);margin-bottom:6px}
+.tt-body{font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.8}
+
+@media(max-width:900px){
+  .metrics-grid{grid-template-columns:repeat(2,1fr)}
+  .row2{grid-template-columns:1fr}
+  .shell{grid-template-columns:1fr;grid-template-rows:52px auto 1fr}
+  .sidebar{flex-direction:row;overflow-x:auto;padding:8px;border-right:none;border-bottom:1px solid var(--border)}
+  .sidebar-label,.sidebar-footer{display:none}
+  .sidebar-section{display:flex;gap:4px}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-icon"></div>
+    <div>
+      <div class="brand-name">KAPV</div>
+      <div class="brand-sub">Attack Path Visualizer</div>
+    </div>
+  </div>
+  <div class="topbar-badges">
+    <span class="topbar-badge tb-red">6 attack paths</span>
+    <span class="topbar-badge tb-amber">2 cycles</span>
+    <span class="topbar-badge tb-purple">4 anomalies</span>
+  </div>
+  <div class="topbar-meta">
+    <span><span class="dot-live"></span>live</span>
+    <span>prod-k8s-01</span>
+    <span>30 nodes · 35 edges</span>
+    <span>26 Apr 2026 · 14:32 UTC</span>
+  </div>
+</header>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-label">Analysis</div>
+    <div class="nav-item active" onclick="nav('overview',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".3"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/></svg>
+      Overview
+      <span class="nav-count nc-red">6</span>
+    </div>
+    <div class="nav-item" onclick="nav('paths',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 8h3M11 8h3M7 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Attack paths
+      <span class="nav-count nc-red">6</span>
+    </div>
+    <div class="nav-item" onclick="nav('graph',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" fill="currentColor"/><circle cx="2" cy="4" r="1.5" fill="currentColor" opacity=".6"/><circle cx="14" cy="4" r="1.5" fill="currentColor" opacity=".6"/><circle cx="2" cy="12" r="1.5" fill="currentColor" opacity=".4"/><circle cx="14" cy="12" r="1.5" fill="currentColor" opacity=".4"/><path d="M3.5 4.5L6.5 7M9.5 7l3-2.5M3.5 11.5L6.5 9M9.5 9l3 2.5" stroke="currentColor" stroke-width="1" opacity=".5"/></svg>
+      Graph viz
+    </div>
+    <div class="nav-item" onclick="nav('nodes',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/><circle cx="3" cy="3" r="1.5" fill="currentColor" opacity=".5"/><circle cx="13" cy="3" r="1.5" fill="currentColor" opacity=".5"/><circle cx="3" cy="13" r="1.5" fill="currentColor" opacity=".3"/><circle cx="13" cy="13" r="1.5" fill="currentColor" opacity=".3"/></svg>
+      Critical nodes
+    </div>
+    <div class="nav-item" onclick="nav('monte',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M1 13l4-5 3 3 3-6 4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Monte Carlo
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">AI / ML</div>
+    <div class="nav-item" onclick="nav('ai',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M8 2a3 3 0 100 6 3 3 0 000-6z" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3 2.5-5 6-5s6 2 6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      AI / ML
+      <span class="nav-count nc-amber">4</span>
+    </div>
+    <div class="nav-item" onclick="nav('temporal',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Temporal
+      <span class="nav-count nc-green">2↑</span>
+    </div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="cluster-info">
+      <div>cluster <strong>prod-k8s-01</strong></div>
+      <div>nodes <strong>30</strong> · edges <strong>35</strong></div>
+      <div>crown jewels <strong>3</strong></div>
+      <div>entry points <strong>4</strong></div>
+      <div>scan <strong>14:32 UTC</strong></div>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- ══ OVERVIEW ══ -->
+<div class="panel active" id="panel-overview">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Cluster security overview</div>
+      <div class="page-subtitle">prod-k8s-01 · 30 nodes · 35 edges · scanned 26 Apr 2026 14:32 UTC</div>
+    </div>
+  </div>
+
+  <!-- Metric cards -->
+  <div class="metrics-grid">
+    <div class="metric-card mc-red">
+      <div class="metric-label">Attack paths</div>
+      <div class="metric-value mv-red">6</div>
+      <div class="metric-sub">2 critical · 2 high · 2 medium</div>
+    </div>
+    <div class="metric-card mc-amber">
+      <div class="metric-label">Avg blast radius</div>
+      <div class="metric-value mv-amber">6.5</div>
+      <div class="metric-sub">nodes reachable in 3 hops</div>
+    </div>
+    <div class="metric-card mc-red">
+      <div class="metric-label">Permission cycles</div>
+      <div class="metric-value mv-red">2</div>
+      <div class="metric-sub">privilege escalation loops</div>
+    </div>
+    <div class="metric-card mc-blue">
+      <div class="metric-label">Highest risk score</div>
+      <div class="metric-value mv-red">24.7</div>
+      <div class="metric-sub">lb-frontend → db-production</div>
+    </div>
+  </div>
+
+  <!-- Top paths + severity -->
+  <div class="row2">
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title">Top attack paths</div><div class="card-subtitle">A* composite risk score — worst first</div></div>
+        <span class="badge badge-red">CRITICAL</span>
+      </div>
+      <div class="path-item pi-critical">
+        <div class="path-head"><span class="path-name">lb-frontend → db-production</span><span class="path-score ps-critical">24.7</span></div>
+        <div class="path-chain">
+          <span class="hop-node entry">lb-frontend</span><span class="hop-arrow">→</span>
+          <span class="hop-node">pod-frontend</span><span class="hop-arrow">→</span>
+          <span class="hop-node pivot">sa-frontend</span><span class="hop-arrow">→</span>
+          <span class="hop-node">secret-db-creds</span><span class="hop-arrow">→</span>
+          <span class="hop-node crown">db-production</span>
+        </div>
+        <div class="path-meta"><span>5 hops</span><span class="cve-tag">CVE-2024-1234</span><span>A* cost: 7.0</span></div>
+      </div>
+      <div class="path-item pi-critical">
+        <div class="path-head"><span class="path-name">user-dev1 → db-production</span><span class="path-score ps-critical">21.3</span></div>
+        <div class="path-chain">
+          <span class="hop-node entry">user-dev1</span><span class="hop-arrow">→</span>
+          <span class="hop-node">pod-backend</span><span class="hop-arrow">→</span>
+          <span class="hop-node pivot">sa-ci</span><span class="hop-arrow">→</span>
+          <span class="hop-node crown">db-production</span>
+        </div>
+        <div class="path-meta"><span>7 hops</span><span class="cve-tag">CVE-2024-5678</span><span>A* cost: 9.0</span></div>
+      </div>
+      <div class="path-item pi-high">
+        <div class="path-head"><span class="path-name">user-ci-bot → secret-master-key</span><span class="path-score ps-high">18.1</span></div>
+        <div class="path-chain">
+          <span class="hop-node entry">user-ci-bot</span><span class="hop-arrow">→</span>
+          <span class="hop-node pivot">clusterrole-admin</span><span class="hop-arrow">→</span>
+          <span class="hop-node crown">secret-master-key</span>
+        </div>
+        <div class="path-meta"><span>4 hops</span><span class="cve-tag">CVE-2024-5678</span><span>A* cost: 5.0</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Severity distribution</div><div class="card-subtitle">6 paths across 3 severity levels</div></div>
+      <div class="chart-wrap" style="height:180px"><canvas id="sev-chart"></canvas></div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px">
+        <span style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:2px;background:var(--red)"></span>Critical 2</span>
+        <span style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:2px;background:var(--amber)"></span>High 2</span>
+        <span style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:2px;background:var(--accent)"></span>Medium 2</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BFS + Cycles -->
+  <div class="row2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">BFS blast radius</div><div class="card-subtitle">Nodes reachable from each entry point within 3 hops</div></div>
+      <div class="chart-wrap" style="height:150px"><canvas id="blast-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Permission cycles — DFS</div><div class="card-subtitle">Privilege escalation loops in RBAC graph</div></div>
+      <div class="cycle-item ci-red">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="badge badge-red">CRITICAL</span><span style="font-family:var(--mono);font-size:10px;color:var(--text2)">3 nodes · 2 misconfig edges</span></div>
+        <div class="cycle-nodes">sa-frontend ↔ role-pod-exec ↔ sa-backend ↔ sa-frontend</div>
+      </div>
+      <div class="cycle-item ci-amber">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="badge badge-amber">HIGH</span><span style="font-family:var(--mono);font-size:10px;color:var(--text2)">3 nodes · 1 misconfig edge</span></div>
+        <div class="cycle-nodes">sa-ci ↔ role-ci-deploy ↔ pod-ci-runner ↔ sa-ci</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Algorithm results summary -->
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Algorithm results summary</div><div class="card-subtitle">What each algorithm found on this cluster</div></div>
+    </div>
+    <div id="algo-summary-rows"></div>
+  </div>
+</div>
+
+<!-- ══ ATTACK PATHS ══ -->
+<div class="panel" id="panel-paths">
+  <div class="page-header">
+    <div><div class="page-title">Attack paths</div><div class="page-subtitle">Dijkstra scans all pairs · A* used for targeted interactive queries</div></div>
+  </div>
+
+  <!-- How paths are found explanation -->
+  <div class="row2">
+    <div class="card" style="background:rgba(99,140,255,0.04);border-color:rgba(99,140,255,0.2)">
+      <div class="card-header"><div class="card-title" style="color:var(--accent)">Dijkstra — full cluster scan</div></div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text2);line-height:1.8">
+        Runs on startup. Checks all 4 entry points × 3 crown jewels = 12 pairs.<br>
+        Found <span style="color:var(--text0);font-weight:700">6 valid paths</span> out of 12 possible combinations.<br>
+        Explores all nodes — gives the complete threat picture.
+      </div>
+    </div>
+    <div class="card" style="background:rgba(45,204,143,0.04);border-color:rgba(45,204,143,0.2)">
+      <div class="card-header"><div class="card-title" style="color:var(--green)">A* — targeted interactive query</div></div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text2);line-height:1.8">
+        Runs on demand for one specific source → target pair.<br>
+        Uses a risk-score heuristic to guide search toward the target.<br>
+        Faster than Dijkstra for single-target queries on large clusters.
+      </div>
+    </div>
+  </div>
+
+  <div class="filter-row">
+    <button class="filter-btn active" onclick="filterPaths('all',this)">All (6)</button>
+    <button class="filter-btn" onclick="filterPaths('CRITICAL',this)">Critical (2)</button>
+    <button class="filter-btn" onclick="filterPaths('HIGH',this)">High (2)</button>
+    <button class="filter-btn" onclick="filterPaths('MEDIUM',this)">Medium (2)</button>
+  </div>
+  <div class="card"><div id="path-list"></div></div>
+  <div class="row2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Path risk score</div><div class="card-subtitle">Composite score per path</div></div>
+      <div class="chart-wrap" style="height:160px"><canvas id="path-dist-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Hop count per path</div><div class="card-subtitle">Lateral moves required</div></div>
+      <div class="chart-wrap" style="height:160px"><canvas id="hop-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GRAPH VIZ ══ -->
+<div class="panel" id="panel-graph">
+  <div class="page-header">
+    <div><div class="page-title">Cluster graph visualization</div><div class="page-subtitle">D3.js force-directed layout · click nodes to inspect · drag to reposition · scroll to zoom</div></div>
+  </div>
+  <div class="row2" style="align-items:center">
+    <div class="filter-row" style="margin-bottom:0">
+      <button class="filter-btn active" onclick="filterGraph('all',this)">All nodes</button>
+      <button class="filter-btn" onclick="filterGraph('attack',this)">Attack paths only</button>
+      <button class="filter-btn" onclick="filterGraph('critical',this)">Critical nodes</button>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+      <span style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:50%;background:#638cff;box-shadow:0 0 6px #638cff"></span>Entry</span>
+      <span style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:50%;background:#ff4d6a;box-shadow:0 0 6px #ff4d6a"></span>Crown jewel</span>
+      <span style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:50%;background:#f5a623;box-shadow:0 0 6px #f5a623"></span>Pivot</span>
+      <span style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:50%;background:#4a5a80"></span>Normal</span>
+      <span style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text1)"><span style="width:20px;height:2px;background:var(--red)"></span>Attack edge</span>
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden;position:relative">
+    <svg id="graph-svg"></svg>
+    <div id="node-tooltip"><div class="tt-name" id="tt-name"></div><div class="tt-body" id="tt-body"></div></div>
+    <div style="position:absolute;bottom:12px;right:14px;display:flex;gap:6px">
+      <button onclick="zoomReset()" style="font-family:var(--mono);font-size:10px;padding:4px 10px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--text1);cursor:pointer">Reset zoom</button>
+      <button onclick="reheat()" style="font-family:var(--mono);font-size:10px;padding:4px 10px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--text1);cursor:pointer">Reheat</button>
+    </div>
+  </div>
+  <div class="card" id="sel-node-card" style="display:none">
+    <div class="card-header">
+      <div><div class="card-title" id="sel-node-title"></div><div class="card-subtitle" id="sel-node-sub"></div></div>
+      <div id="sel-node-badge"></div>
+    </div>
+    <div class="row2"><div id="sel-node-props"></div><div id="sel-node-edges"></div></div>
+  </div>
+</div>
+
+<!-- ══ CRITICAL NODES ══ -->
+<div class="panel" id="panel-nodes">
+  <div class="page-header">
+    <div><div class="page-title">Critical node analysis</div><div class="page-subtitle">PageRank · Betweenness centrality · Louvain community detection</div></div>
+  </div>
+  <div class="tab-row">
+    <button class="tab-btn active" onclick="switchTab('pr',this)">Security PageRank</button>
+    <button class="tab-btn" onclick="switchTab('bc',this)">Betweenness</button>
+    <button class="tab-btn" onclick="switchTab('comm',this)">Communities</button>
+  </div>
+  <div id="tab-pr">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Top 8 nodes — security pagerank</div><div class="card-subtitle">Personalized random walk weighted by risk score · higher score = more attack paths pass through this node</div></div>
+      <div id="pr-rows"></div>
+      <div class="rec-box">Recommendation: removing permission binding <strong>sa-ci</strong> eliminates <strong>3 of 6</strong> attack paths with a single RBAC change. Highest structural leverage in the cluster.</div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">PageRank score distribution</div></div>
+      <div class="chart-wrap" style="height:150px"><canvas id="pr-chart"></canvas></div>
+    </div>
+  </div>
+  <div id="tab-bc" style="display:none">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Betweenness centrality</div><div class="card-subtitle">Fraction of all shortest paths that pass through each node — the higher, the more paths it blocks if removed</div></div>
+      <div id="bc-rows"></div>
+    </div>
+  </div>
+  <div id="tab-comm" style="display:none">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Louvain community detection</div><div class="card-subtitle">Cross-namespace communities violate Kubernetes namespace isolation — least privilege failure</div></div>
+      <div id="comm-rows"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MONTE CARLO ══ -->
+<div class="panel" id="panel-monte">
+  <div class="page-header">
+    <div><div class="page-title">Monte Carlo simulation</div><div class="page-subtitle">10,000 stochastic attack simulations per entry point · probabilistic compromise scoring</div></div>
+  </div>
+  <div class="metrics-grid">
+    <div class="metric-card mc-blue">
+      <div class="metric-label">Simulations</div>
+      <div class="metric-value mv-accent">10k</div>
+      <div class="metric-sub">per entry point</div>
+    </div>
+    <div class="metric-card mc-green">
+      <div class="metric-label">Detection rate</div>
+      <div class="metric-value mv-green">8.2%</div>
+      <div class="metric-sub">attacker caught mid-chain</div>
+    </div>
+    <div class="metric-card mc-red">
+      <div class="metric-label">Max compromise prob.</div>
+      <div class="metric-value mv-red">73%</div>
+      <div class="metric-sub">lb-frontend → db-production</div>
+    </div>
+    <div class="metric-card mc-amber">
+      <div class="metric-label">Avg hops to jewel</div>
+      <div class="metric-value mv-amber">3.4</div>
+      <div class="metric-sub">lateral moves expected</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Crown jewel compromise probability</div><div class="card-subtitle">95% confidence intervals · based on 10,000 simulations per source node</div></div>
+    <div id="monte-rows"></div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Sensitivity — probability vs detection rate</div><div class="card-subtitle">Higher detection per hop lowers compromise probability</div></div>
+      <div class="chart-wrap" style="height:180px"><canvas id="monte-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Exploit probability by edge type</div><div class="card-subtitle">can_exec is most dangerous relationship type</div></div>
+      <div class="chart-wrap" style="height:180px"><canvas id="exploit-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ AI / ML ══ -->
+<div class="panel" id="panel-ai">
+  <div class="page-header">
+    <div><div class="page-title">AI / ML layer</div><div class="page-subtitle">XGBoost predictive risk · Isolation Forest reactive anomaly · GraphSAGE link prediction</div></div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">XGBoost — predicted high-risk nodes</div><span class="badge badge-accent">PREDICTIVE</span></div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:12px">Self-supervised model trained on graph structural features · predicts risk before compromise occurs</div>
+      <div id="xgb-rows"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Feature importance</div><div class="card-subtitle">What the XGBoost model learned matters most</div></div>
+      <div class="chart-wrap" style="height:210px"><canvas id="fi-chart"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Isolation Forest — anomalous nodes</div><span class="badge badge-amber">REACTIVE</span></div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:12px">Unsupervised detection · flags nodes whose graph structure is unlike all others · no labels required</div>
+    <div id="iso-rows"></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">GraphSAGE — predicted future trust edges</div><span class="badge badge-purple">GNN</span></div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:12px">Edges that do not yet exist but are structurally predicted to form · harden these bindings now before they appear</div>
+    <div id="gnn-rows"></div>
+  </div>
+</div>
+
+<!-- ══ TEMPORAL ══ -->
+<div class="panel" id="panel-temporal">
+  <div class="page-header">
+    <div><div class="page-title">Temporal analysis</div><div class="page-subtitle">7-day risk forecasting · graph delta detection · drift alerts</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Risk forecast — next 7 days</div><span class="badge badge-green">PREDICTIVE</span></div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:12px">Linear regression over 5-day history · alert threshold risk ≥ 8.0 · nodes marked RISING are approaching danger</div>
+    <div id="temporal-rows"></div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Risk trajectory — rising nodes</div><div class="card-subtitle">Historical + 7-day forecast · dashed = projected</div></div>
+      <div class="chart-wrap" style="height:180px"><canvas id="trend-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Graph delta log</div><span class="badge badge-red">1 ALERT</span></div>
+      <div id="delta-rows"></div>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+// ─── Navigation ────────────────────────────────────────────────────────────
+function nav(id, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  setTimeout(animateBars, 120);
+  if (id === 'graph') setTimeout(initGraph, 80);
+}
+
+// ─── Data ──────────────────────────────────────────────────────────────────
+const ENTRY_NODES = new Set(['lb-frontend','user-dev1','user-dev2','user-ci-bot']);
+const CROWN_NODES = new Set(['db-production','db-analytics','secret-master-key']);
+const PIVOT_NODES = new Set(['sa-frontend','sa-backend','sa-ci','clusterrole-admin','role-pod-exec','role-secret-reader']);
+
+function hopClass(h) {
+  if (ENTRY_NODES.has(h)) return 'entry';
+  if (CROWN_NODES.has(h)) return 'crown';
+  if (PIVOT_NODES.has(h)) return 'pivot';
+  return '';
+}
+
+const PATHS = [
+  { src:'lb-frontend',  dst:'db-production',    score:24.7, sev:'CRITICAL',
+    hops:['lb-frontend','pod-frontend','sa-frontend','role-secret-reader','secret-db-creds','db-production'],
+    cves:['CVE-2024-1234'], cost:7.0, algo:'Dijkstra' },
+  { src:'user-dev1',    dst:'db-production',    score:21.3, sev:'CRITICAL',
+    hops:['user-dev1','pod-backend','sa-backend','role-pod-exec','pod-ci-runner','sa-ci','secret-ci-token','db-production'],
+    cves:['CVE-2024-5678'], cost:9.0, algo:'Dijkstra' },
+  { src:'user-ci-bot',  dst:'secret-master-key',score:18.1, sev:'HIGH',
+    hops:['user-ci-bot','pod-ci-runner','sa-ci','clusterrole-admin','secret-master-key'],
+    cves:['CVE-2024-5678'], cost:5.0, algo:'Dijkstra' },
+  { src:'user-dev2',    dst:'db-analytics',     score:14.2, sev:'HIGH',
+    hops:['user-dev2','pod-worker','sa-worker','cm-db-config','db-analytics'],
+    cves:[], cost:8.0, algo:'Dijkstra' },
+  { src:'lb-frontend',  dst:'db-analytics',     score:9.1,  sev:'MEDIUM',
+    hops:['lb-frontend','pod-backend','sa-backend','secret-api-key','db-analytics'],
+    cves:[], cost:6.5, algo:'A*' },
+  { src:'user-dev1',    dst:'secret-master-key',score:7.8,  sev:'MEDIUM',
+    hops:['user-dev1','pod-backend','sa-backend','role-pod-exec','pod-ci-runner','sa-ci','clusterrole-admin','secret-master-key'],
+    cves:[], cost:11.0, algo:'A*' },
+];
+
+const SEV_COLOR = { CRITICAL:'var(--red)', HIGH:'var(--amber)', MEDIUM:'var(--accent)' };
+const PI_CLASS  = { CRITICAL:'pi-critical', HIGH:'pi-high', MEDIUM:'pi-medium' };
+const PS_CLASS  = { CRITICAL:'ps-critical', HIGH:'ps-high', MEDIUM:'ps-medium' };
+const B_CLASS   = { CRITICAL:'badge-red',   HIGH:'badge-amber', MEDIUM:'badge-accent' };
+
+// ─── Algorithm results summary ─────────────────────────────────────────────
+const ALGO_SUMMARY = [
+  { tag:'BFS',         col:'#2dcc8f', finding:'4 entry points scanned · max blast radius 9 nodes (lb-frontend) · avg 6.5 nodes per 3 hops' },
+  { tag:'Dijkstra',    col:'#a78bfa', finding:'All 12 entry→crown pairs checked · 6 valid attack paths found · avg cost 7.75' },
+  { tag:'A*',          col:'#22d3ee', finding:'Interactive targeted queries · fastest single path lb-frontend→db-production: 5 hops cost 7.0' },
+  { tag:'DFS',         col:'#f5a623', finding:'2 privilege cycles detected · 5 nodes involved · cycle sa-frontend↔role-pod-exec CRITICAL' },
+  { tag:'PageRank',    col:'#638cff', finding:'Top chokepoint: sa-ci (score 0.0842) · removing it eliminates 3 of 6 attack paths' },
+  { tag:'Betweenness', col:'#ff4d6a', finding:'Critical bottleneck: pod-ci-runner (0.412) · sits on most attack paths as transit node' },
+  { tag:'Louvain',     col:'#d4537e', finding:'3 communities found · 1 cross-namespace violation spanning ci + cluster + kube-system' },
+  { tag:'Monte Carlo', col:'#888780', finding:'db-production: 73% compromise probability · 10,000 simulations · avg 3.4 lateral hops' },
+];
+document.getElementById('algo-summary-rows').innerHTML = ALGO_SUMMARY.map(r =>
+  `<div class="algo-summary-row">
+    <span class="algo-tag" style="color:${r.col}">${r.tag}</span>
+    <span class="algo-finding">${r.finding}</span>
+  </div>`
+).join('');
+
+// ─── Attack paths ──────────────────────────────────────────────────────────
+let pathFilter = 'all';
+function filterPaths(f, el) {
+  pathFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderPaths();
+}
+function renderPaths() {
+  const list = pathFilter === 'all' ? PATHS : PATHS.filter(p => p.sev === pathFilter);
+  document.getElementById('path-list').innerHTML = list.map(p => {
+    const chain = p.hops.map((h, i) =>
+      `<span class="hop-node ${hopClass(h)}">${h}</span>${i < p.hops.length-1 ? '<span class="hop-arrow">→</span>' : ''}`
+    ).join('');
+    const cves = p.cves.map(c => `<span class="cve-tag">${c}</span>`).join(' ');
+    const algoCol = p.algo === 'A*' ? 'var(--green)' : 'var(--purple)';
+    return `<div class="path-item ${PI_CLASS[p.sev]}">
+      <div class="path-head">
+        <span class="path-name">${p.src} → ${p.dst}</span>
+        <span class="path-score ${PS_CLASS[p.sev]}">${p.score}</span>
+      </div>
+      <div class="path-chain">${chain}</div>
+      <div class="path-meta">
+        <span>${p.hops.length-1} hops</span>
+        ${cves}
+        <span style="color:${algoCol};font-weight:600">${p.algo} cost: ${p.cost}</span>
+        <span class="badge ${B_CLASS[p.sev]}">${p.sev}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+renderPaths();
+
+// ─── PageRank rows ─────────────────────────────────────────────────────────
+const PR_NODES = [
+  { name:'sa-ci',            type:'ServiceAccount', pr:0.0842, risk:9.0  },
+  { name:'clusterrole-admin',type:'ClusterRole',    pr:0.0791, risk:10.0 },
+  { name:'pod-ci-runner',    type:'Pod',            pr:0.0723, risk:8.0  },
+  { name:'sa-backend',       type:'ServiceAccount', pr:0.0681, risk:6.0  },
+  { name:'role-pod-exec',    type:'Role',           pr:0.0612, risk:8.5  },
+  { name:'sa-frontend',      type:'ServiceAccount', pr:0.0557, risk:5.0  },
+  { name:'secret-db-creds',  type:'Secret',         pr:0.0501, risk:9.5  },
+  { name:'lb-frontend',      type:'LoadBalancer',   pr:0.0468, risk:7.5  },
+];
+document.getElementById('pr-rows').innerHTML = PR_NODES.map((n, i) => {
+  const col = n.risk >= 8 ? 'var(--red)' : n.risk >= 5 ? 'var(--amber)' : 'var(--green)';
+  return `<div class="node-row">
+    <span class="node-rank">${i+1}</span>
+    <span class="node-type-pill">${n.type}</span>
+    <span class="node-name-mono">${n.name}</span>
+    <div class="score-bar-wrap"><div class="score-fill" style="width:${n.pr*1000}%;background:var(--accent)"></div></div>
+    <span class="risk-num" style="color:${col}">${n.risk}</span>
+    <span class="pr-score">${n.pr.toFixed(4)}</span>
+  </div>`;
+}).join('');
+
+// ─── Betweenness rows ──────────────────────────────────────────────────────
+const BC_NODES = [
+  { name:'pod-ci-runner',    type:'Pod',            bc:0.412 },
+  { name:'sa-ci',            type:'ServiceAccount', bc:0.387 },
+  { name:'clusterrole-admin',type:'ClusterRole',    bc:0.341 },
+  { name:'sa-backend',       type:'ServiceAccount', bc:0.298 },
+  { name:'role-pod-exec',    type:'Role',           bc:0.264 },
+  { name:'secret-db-creds',  type:'Secret',         bc:0.198 },
+];
+document.getElementById('bc-rows').innerHTML = BC_NODES.map((n, i) => {
+  const col = n.bc > 0.35 ? 'var(--red)' : n.bc > 0.2 ? 'var(--amber)' : 'var(--green)';
+  return `<div class="node-row">
+    <span class="node-rank">${i+1}</span>
+    <span class="node-type-pill">${n.type}</span>
+    <span class="node-name-mono">${n.name}</span>
+    <div class="score-bar-wrap" style="width:100px"><div class="score-fill" style="width:${n.bc*100}%;background:${col}"></div></div>
+    <span class="risk-num" style="color:${col}">${n.bc.toFixed(3)}</span>
+  </div>`;
+}).join('');
+
+// ─── Community rows ────────────────────────────────────────────────────────
+document.getElementById('comm-rows').innerHTML = `
+  <div class="community-block">
+    <div class="community-header"><span class="community-name">Community #0</span><span class="badge badge-red">cross-namespace violation</span></div>
+    <div class="comm-members">
+      <span class="comm-pill" style="background:var(--red-bg);border:1px solid var(--red-border);color:var(--red)">sa-ci<span class="comm-ns">[ci]</span></span>
+      <span class="comm-pill" style="background:var(--red-bg);border:1px solid var(--red-border);color:var(--red)">clusterrole-admin<span class="comm-ns">[cluster]</span></span>
+      <span class="comm-pill" style="background:var(--red-bg);border:1px solid var(--red-border);color:var(--red)">pod-ci-runner<span class="comm-ns">[ci]</span></span>
+      <span class="comm-pill" style="background:var(--red-bg);border:1px solid var(--red-border);color:var(--red)">secret-master-key<span class="comm-ns">[kube-system]</span></span>
+    </div>
+    <div class="violation-note">Spans 3 namespaces: ci · cluster · kube-system — violates namespace isolation principle</div>
+  </div>
+  <div class="community-block">
+    <div class="community-header"><span class="community-name">Community #1</span><span class="badge badge-green">clean</span></div>
+    <div class="comm-members">
+      <span class="comm-pill" style="background:var(--green-bg);border:1px solid var(--green-border);color:var(--green)">pod-logger<span class="comm-ns">[logging]</span></span>
+      <span class="comm-pill" style="background:var(--green-bg);border:1px solid var(--green-border);color:var(--green)">sa-logger<span class="comm-ns">[logging]</span></span>
+      <span class="comm-pill" style="background:var(--green-bg);border:1px solid var(--green-border);color:var(--green)">role-log-reader<span class="comm-ns">[logging]</span></span>
+    </div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--green);margin-top:6px">Single namespace — properly isolated ✓</div>
+  </div>
+  <div class="community-block">
+    <div class="community-header"><span class="community-name">Community #2</span><span class="badge badge-accent">review</span></div>
+    <div class="comm-members">
+      <span class="comm-pill" style="background:var(--accent-glow);border:1px solid rgba(99,140,255,.3);color:var(--accent)">pod-frontend<span class="comm-ns">[default]</span></span>
+      <span class="comm-pill" style="background:var(--accent-glow);border:1px solid rgba(99,140,255,.3);color:var(--accent)">sa-frontend<span class="comm-ns">[default]</span></span>
+      <span class="comm-pill" style="background:var(--accent-glow);border:1px solid rgba(99,140,255,.3);color:var(--accent)">role-secret-reader<span class="comm-ns">[default]</span></span>
+    </div>
+  </div>`;
+
+// ─── Monte Carlo rows ──────────────────────────────────────────────────────
+const MONTE = [
+  { cj:'db-production',    prob:0.73, ci:[0.70,0.76], hops:3.2, sev:'CRITICAL' },
+  { cj:'secret-master-key',prob:0.51, ci:[0.48,0.54], hops:3.8, sev:'HIGH'     },
+  { cj:'db-analytics',     prob:0.28, ci:[0.25,0.31], hops:4.1, sev:'MEDIUM'   },
+];
+document.getElementById('monte-rows').innerHTML = MONTE.map(m => `
+  <div class="monte-row">
+    <span class="monte-target">${m.cj}</span>
+    <div class="prob-bar-wrap"><div class="prob-fill" data-width="${m.prob*100}" style="background:${SEV_COLOR[m.sev]}"></div></div>
+    <span class="prob-pct" style="color:${SEV_COLOR[m.sev]}">${(m.prob*100).toFixed(0)}%</span>
+    <span style="font-family:var(--mono);font-size:10px;color:var(--text2);min-width:90px">CI [${(m.ci[0]*100).toFixed(0)},${(m.ci[1]*100).toFixed(0)}]%</span>
+    <span class="badge ${B_CLASS[m.sev]}">${m.sev}</span>
+    <span style="font-family:var(--mono);font-size:10px;color:var(--text2);min-width:70px">avg ${m.hops} hops</span>
+  </div>`).join('');
+
+// ─── XGBoost rows ─────────────────────────────────────────────────────────
+const XGB = [
+  { name:'pod-ci-runner',    prob:0.94, hi:true  },
+  { name:'clusterrole-admin',prob:0.91, hi:true  },
+  { name:'sa-ci',            prob:0.89, hi:true  },
+  { name:'role-pod-exec',    prob:0.82, hi:true  },
+  { name:'sa-backend',       prob:0.74, hi:true  },
+  { name:'secret-db-creds',  prob:0.71, hi:true  },
+  { name:'pod-frontend',     prob:0.52, hi:false },
+  { name:'sa-monitor',       prob:0.21, hi:false },
+];
+document.getElementById('xgb-rows').innerHTML = XGB.map(n => {
+  const col = n.prob > 0.7 ? 'var(--red)' : n.prob > 0.5 ? 'var(--amber)' : 'var(--green)';
+  return `<div class="node-row">
+    <span class="node-name-mono">${n.name}</span>
+    <div class="score-bar-wrap" style="width:120px"><div class="score-fill" style="width:${n.prob*100}%;background:${col}"></div></div>
+    <span class="risk-num" style="color:${col};min-width:40px">${(n.prob*100).toFixed(0)}%</span>
+    <span class="badge ${n.hi ? 'badge-red' : 'badge-green'}" style="margin-left:4px">${n.hi ? 'high risk' : 'safe'}</span>
+  </div>`;
+}).join('');
+
+// ─── Isolation Forest rows ─────────────────────────────────────────────────
+const ISO = [
+  { name:'clusterrole-admin', score:0.94, reason:'Unusually high out-degree + zero in-degree — admin with no parent node' },
+  { name:'pod-ci-runner',     score:0.87, reason:'2 CVEs + cycle membership + high CVSS incoming edges' },
+  { name:'sa-ci',             score:0.81, reason:'Mounts secret + bound to cluster-admin — anomalous role for a ServiceAccount' },
+  { name:'secret-master-key', score:0.76, reason:'Isolated in kube-system namespace, reachable from CI namespace' },
+];
+document.getElementById('iso-rows').innerHTML = ISO.map(n => {
+  const col = n.score > 0.85 ? 'var(--red)' : 'var(--amber)';
+  return `<div class="anomaly-row">
+    <div class="anomaly-ring" style="border:2px solid ${col};color:${col}">${(n.score*100).toFixed(0)}%</div>
+    <div><div class="anomaly-name">${n.name}</div><div class="anomaly-reason">${n.reason}</div></div>
+  </div>`;
+}).join('');
+
+// ─── GNN rows ──────────────────────────────────────────────────────────────
+const GNN = [
+  { from:'sa-backend',  to:'clusterrole-admin', score:0.91 },
+  { from:'pod-frontend',to:'secret-master-key', score:0.87 },
+  { from:'user-dev2',   to:'pod-ci-runner',     score:0.82 },
+  { from:'sa-frontend', to:'secret-ci-token',   score:0.79 },
+];
+document.getElementById('gnn-rows').innerHTML = GNN.map(g => `
+  <div class="gnn-row">
+    <span class="hop-node entry">${g.from}</span>
+    <span class="hop-arrow" style="padding:0 8px;font-size:14px">→</span>
+    <span class="hop-node pivot">${g.to}</span>
+    <div class="score-bar-wrap" style="flex:1;margin:0 10px"><div class="score-fill" style="width:${g.score*100}%;background:var(--accent)"></div></div>
+    <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);min-width:40px;text-align:right">${(g.score*100).toFixed(0)}%</span>
+    <span class="badge badge-amber" style="margin-left:8px">harden now</span>
+  </div>`).join('');
+
+// ─── Temporal rows ─────────────────────────────────────────────────────────
+const TEMP = [
+  { name:'pod-ci-runner',    curr:8.0, proj:9.4, trend:'RISING',  hist:[7.1,7.4,7.6,7.8,8.0] },
+  { name:'sa-ci',            curr:9.0, proj:9.1, trend:'STABLE',  hist:[8.8,9.0,8.9,9.1,9.0] },
+  { name:'pod-frontend',     curr:7.5, proj:8.9, trend:'RISING',  hist:[6.2,6.8,7.0,7.3,7.5] },
+  { name:'pod-logger',       curr:3.0, proj:2.7, trend:'FALLING', hist:[3.5,3.3,3.2,3.1,3.0] },
+  { name:'clusterrole-admin',curr:10.0,proj:10.0,trend:'STABLE',  hist:[9.9,10.0,10.0,10.0,10.0] },
+];
+document.getElementById('temporal-rows').innerHTML = TEMP.map(n => {
+  const tc   = n.trend==='RISING'?'var(--red)':n.trend==='FALLING'?'var(--green)':'var(--amber)';
+  const tpill= n.trend==='RISING'?'badge-red':n.trend==='FALLING'?'badge-green':'badge-amber';
+  const arrow= n.trend==='RISING'?'↑':n.trend==='FALLING'?'↓':'→';
+  const bars = n.hist.map(v => `<div class="spark-bar" style="height:${(v/10)*28}px;background:${tc};opacity:.75"></div>`).join('');
+  return `<div class="temp-row">
+    <span class="temp-name">${n.name}</span>
+    <div class="sparkline-wrap">${bars}</div>
+    <span class="temp-range" style="color:${tc}">${n.curr} ${arrow} ${n.proj}</span>
+    <span class="trend-pill ${tpill}">${n.trend}</span>
+    ${n.proj>=8?'<span class="badge badge-red" style="margin-left:4px">ALERT</span>':''}
+  </div>`;
+}).join('') + `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">Linear regression · 5-day training window · 7-day forecast · alert threshold 8.0</div>`;
+
+// ─── Delta log ─────────────────────────────────────────────────────────────
+const DELTAS = [
+  { col:'var(--red)',   title:'New edge: sa-ci → clusterrole-admin',      desc:'Appeared 6h ago · creates new path to secret-master-key', alert:true  },
+  { col:'var(--amber)', title:'Node added: pod-ci-runner v2',              desc:'CVE-2024-5678 detected via image scan · risk 8.0→9.0',   alert:false },
+  { col:'var(--green)', title:'Edge removed: role-pod-exec → pod-backend', desc:'RBAC binding revoked · 2 attack paths eliminated',       alert:false },
+  { col:'var(--accent)',title:'Snapshot diff: 25 Apr → 26 Apr',           desc:'+1 node · +2 edges · +1 attack path · −1 cycle',         alert:false },
+];
+document.getElementById('delta-rows').innerHTML = DELTAS.map(d => `
+  <div class="timeline-item">
+    <div class="timeline-dot" style="background:${d.col};color:${d.col}"></div>
+    <div>
+      <div class="timeline-title">${d.title}${d.alert?' <span class="badge badge-red">ALERT</span>':''}</div>
+      <div class="timeline-desc">${d.desc}</div>
+    </div>
+  </div>`).join('');
+
+// ─── Tab switching ─────────────────────────────────────────────────────────
+function switchTab(id, el) {
+  ['pr','bc','comm'].forEach(t => document.getElementById('tab-'+t).style.display = t===id?'':'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  setTimeout(animateBars, 100);
+}
+
+// ─── Animated bar fills ────────────────────────────────────────────────────
+function animateBars() {
+  document.querySelectorAll('[data-width]').forEach(el => {
+    el.style.width = el.getAttribute('data-width') + '%';
+  });
+}
+
+// ─── Charts ────────────────────────────────────────────────────────────────
+const GRID = { color:'rgba(99,140,255,0.07)' };
+const TICK = { color:'#6070a0', font:{ size:10, family:"'JetBrains Mono', monospace" } };
+const BASE_OPTS = {
+  responsive:true, maintainAspectRatio:false,
+  plugins:{ legend:{ display:false } },
+  scales:{ x:{ grid:GRID, ticks:TICK }, y:{ grid:GRID, ticks:TICK } }
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+  // Severity doughnut
+  new Chart(document.getElementById('sev-chart'), {
+    type:'doughnut',
+    data:{ labels:['Critical','High','Medium'],
+      datasets:[{ data:[2,2,2], backgroundColor:['#ff4d6a','#f5a623','#638cff'], borderWidth:0, hoverOffset:8 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'68%',
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw} paths`}} } }
+  });
+
+  // BFS blast radius
+  new Chart(document.getElementById('blast-chart'), {
+    type:'bar',
+    data:{ labels:['lb-frontend','user-ci-bot','user-dev1','user-dev2'],
+      datasets:[{ data:[9,7,6,4], backgroundColor:['#ff4d6a','#f5a623','#a78bfa','#638cff'], borderWidth:0, borderRadius:4 }] },
+    options:{ ...BASE_OPTS, scales:{ x:{grid:{display:false},ticks:TICK}, y:{grid:GRID,ticks:{...TICK,stepSize:2}} } }
+  });
+
+  // Path risk scores
+  new Chart(document.getElementById('path-dist-chart'), {
+    type:'bar',
+    data:{ labels:['lb→db-prod','dev1→db-prod','cibot→master','dev2→analytics','lb→analytics','dev1→master'],
+      datasets:[{ data:[24.7,21.3,18.1,14.2,9.1,7.8],
+        backgroundColor:['#ff4d6a','#ff4d6a','#f5a623','#f5a623','#638cff','#638cff'], borderWidth:0, borderRadius:4 }] },
+    options:{ ...BASE_OPTS, scales:{ x:{grid:{display:false},ticks:{...TICK,maxRotation:35}}, y:{grid:GRID,ticks:TICK} } }
+  });
+
+  // Hop counts
+  new Chart(document.getElementById('hop-chart'), {
+    type:'bar',
+    data:{ labels:['Path 1','Path 2','Path 3','Path 4','Path 5','Path 6'],
+      datasets:[{ data:[5,7,4,5,5,7], backgroundColor:'rgba(99,140,255,0.65)', borderWidth:0, borderRadius:4 }] },
+    options:{ ...BASE_OPTS, scales:{ x:{grid:{display:false},ticks:TICK}, y:{grid:GRID,ticks:{...TICK,stepSize:1}} } }
+  });
+
+  // PageRank
+  new Chart(document.getElementById('pr-chart'), {
+    type:'bar',
+    data:{ labels:PR_NODES.map(n=>n.name),
+      datasets:[{ data:PR_NODES.map(n=>n.pr), backgroundColor:'rgba(99,140,255,0.7)', borderWidth:0, borderRadius:4 }] },
+    options:{ ...BASE_OPTS, scales:{ x:{grid:{display:false},ticks:{...TICK,maxRotation:40}}, y:{grid:GRID,ticks:{...TICK,callback:v=>v.toFixed(3)}} } }
+  });
+
+  // Monte Carlo sensitivity
+  new Chart(document.getElementById('monte-chart'), {
+    type:'line',
+    data:{
+      labels:['0%','5%','10%','15%','20%','25%'],
+      datasets:[
+        { label:'db-production',    data:[0.73,0.65,0.55,0.42,0.31,0.19], borderColor:'#ff4d6a', backgroundColor:'rgba(255,77,106,0.08)', fill:true, borderWidth:2, pointRadius:4, tension:0.3 },
+        { label:'secret-master-key',data:[0.51,0.44,0.36,0.27,0.19,0.11], borderColor:'#f5a623', backgroundColor:'transparent', borderDash:[5,3], borderWidth:2, pointRadius:3, tension:0.3 },
+        { label:'db-analytics',     data:[0.28,0.23,0.18,0.13,0.09,0.05], borderColor:'#638cff', backgroundColor:'transparent', borderDash:[2,4], borderWidth:2, pointRadius:3, tension:0.3 },
+      ]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{
+        x:{ grid:GRID, ticks:TICK, title:{display:true,text:'Detection probability per hop',color:'#6070a0',font:{size:10}} },
+        y:{ grid:GRID, ticks:{...TICK,callback:v=>(v*100).toFixed(0)+'%'} }
+      }
+    }
+  });
+
+  // Exploit probability by edge type
+  new Chart(document.getElementById('exploit-chart'), {
+    type:'bar',
+    data:{ labels:['can_exec','exposes','bound_to','can_read','uses','mounts'],
+      datasets:[{ data:[0.90,0.85,0.72,0.60,0.50,0.45],
+        backgroundColor:['#ff4d6a','#ff6b6b','#f5a623','#638cff','#a78bfa','#2dcc8f'], borderWidth:0, borderRadius:4 }] },
+    options:{ ...BASE_OPTS, scales:{ x:{grid:{display:false},ticks:{...TICK,maxRotation:30}}, y:{grid:GRID,ticks:{...TICK,callback:v=>(v*100).toFixed(0)+'%'},max:1} } }
+  });
+
+  // Feature importance
+  new Chart(document.getElementById('fi-chart'), {
+    type:'bar',
+    data:{ labels:['in_cycle','betweenness','num_cves','pagerank','misconfig_edge','avg_in_cvss'],
+      datasets:[{ data:[0.31,0.24,0.18,0.13,0.09,0.05],
+        backgroundColor:['#638cff','#a78bfa','#ff4d6a','#2dcc8f','#f5a623','#888780'], borderWidth:0, borderRadius:4 }] },
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:GRID,ticks:TICK}, y:{grid:{display:false},ticks:TICK} } }
+  });
+
+  // Trend lines (historical + forecast)
+  new Chart(document.getElementById('trend-chart'), {
+    type:'line',
+    data:{
+      labels:['D1','D2','D3','D4','D5','','F1','F2','F3','F4','F5','F6','F7'],
+      datasets:[
+        { label:'pod-ci-runner', data:[7.1,7.4,7.6,7.8,8.0,null,8.0,8.3,8.6,8.9,9.1,9.2,9.4],
+          borderColor:'#ff4d6a', backgroundColor:'rgba(255,77,106,0.06)', fill:true, borderWidth:2, pointRadius:3, tension:0.3 },
+        { label:'pod-frontend',  data:[6.2,6.8,7.0,7.3,7.5,null,7.5,7.8,8.1,8.4,8.6,8.7,8.9],
+          borderColor:'#f5a623', backgroundColor:'transparent', borderDash:[4,3], borderWidth:2, pointRadius:3, tension:0.3 },
+      ]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:GRID,ticks:TICK}, y:{grid:GRID,ticks:TICK,min:5,max:11} } }
+  });
+
+  setTimeout(animateBars, 200);
+});
+
+// ─── D3 Graph Visualization ────────────────────────────────────────────────
+const G_NODES = [
+  { id:'lb-frontend',       type:'entry', entity:'LoadBalancer',   risk:7.5,  ns:'default'    },
+  { id:'user-dev1',         type:'entry', entity:'User',           risk:4.0,  ns:'default'    },
+  { id:'user-dev2',         type:'entry', entity:'User',           risk:3.5,  ns:'staging'    },
+  { id:'user-ci-bot',       type:'entry', entity:'User',           risk:6.0,  ns:'ci'         },
+  { id:'pod-frontend',      type:'normal',entity:'Pod',            risk:7.5,  ns:'default', cves:['CVE-2024-1234'] },
+  { id:'pod-backend',       type:'normal',entity:'Pod',            risk:5.0,  ns:'default'    },
+  { id:'pod-worker',        type:'normal',entity:'Pod',            risk:4.5,  ns:'default'    },
+  { id:'pod-ci-runner',     type:'pivot', entity:'Pod',            risk:8.0,  ns:'ci', cves:['CVE-2024-5678'] },
+  { id:'pod-logger',        type:'normal',entity:'Pod',            risk:3.0,  ns:'logging'    },
+  { id:'pod-monitor',       type:'normal',entity:'Pod',            risk:4.0,  ns:'monitoring' },
+  { id:'sa-frontend',       type:'pivot', entity:'ServiceAccount', risk:5.0,  ns:'default'    },
+  { id:'sa-backend',        type:'pivot', entity:'ServiceAccount', risk:6.0,  ns:'default'    },
+  { id:'sa-worker',         type:'normal',entity:'ServiceAccount', risk:4.0,  ns:'default'    },
+  { id:'sa-ci',             type:'pivot', entity:'ServiceAccount', risk:9.0,  ns:'ci'         },
+  { id:'sa-logger',         type:'normal',entity:'ServiceAccount', risk:3.5,  ns:'logging'    },
+  { id:'role-secret-reader',type:'pivot', entity:'Role',           risk:7.0,  ns:'default'    },
+  { id:'role-pod-exec',     type:'pivot', entity:'Role',           risk:8.5,  ns:'default'    },
+  { id:'role-log-reader',   type:'normal',entity:'Role',           risk:3.0,  ns:'logging'    },
+  { id:'clusterrole-admin', type:'pivot', entity:'ClusterRole',    risk:10.0, ns:'cluster'    },
+  { id:'role-ci-deploy',    type:'normal',entity:'Role',           risk:8.0,  ns:'ci'         },
+  { id:'secret-db-creds',   type:'normal',entity:'Secret',         risk:9.5,  ns:'default'    },
+  { id:'secret-api-key',    type:'normal',entity:'Secret',         risk:8.0,  ns:'default'    },
+  { id:'secret-ci-token',   type:'normal',entity:'Secret',         risk:9.0,  ns:'ci'         },
+  { id:'cm-db-config',      type:'normal',entity:'ConfigMap',      risk:5.5,  ns:'default'    },
+  { id:'db-production',     type:'crown', entity:'Database',       risk:10.0, ns:'database'   },
+  { id:'db-analytics',      type:'crown', entity:'Database',       risk:8.5,  ns:'database'   },
+  { id:'secret-master-key', type:'crown', entity:'Secret',         risk:10.0, ns:'kube-system'},
+];
+
+const ATTACK_KEYS = new Set([
+  'lb-frontend|pod-frontend','pod-frontend|sa-frontend','sa-frontend|role-secret-reader',
+  'role-secret-reader|secret-db-creds','secret-db-creds|db-production',
+  'user-dev1|pod-backend','pod-backend|sa-backend','sa-backend|role-pod-exec',
+  'role-pod-exec|pod-ci-runner','pod-ci-runner|sa-ci','sa-ci|secret-ci-token',
+  'secret-ci-token|db-production','user-ci-bot|pod-ci-runner','sa-ci|clusterrole-admin',
+  'clusterrole-admin|secret-master-key','user-dev2|pod-worker','pod-worker|sa-worker',
+  'sa-worker|cm-db-config','cm-db-config|db-analytics','secret-api-key|db-analytics',
+]);
+
+const G_EDGES = [
+  { source:'lb-frontend',       target:'pod-frontend',       rel:'exposes',     misconfig:true  },
+  { source:'pod-frontend',      target:'sa-frontend',        rel:'uses',        misconfig:false },
+  { source:'sa-frontend',       target:'role-secret-reader', rel:'bound_to',    misconfig:true  },
+  { source:'role-secret-reader',target:'secret-db-creds',    rel:'can_read',    misconfig:false },
+  { source:'secret-db-creds',   target:'db-production',      rel:'can_read',    misconfig:false },
+  { source:'user-dev1',         target:'pod-backend',        rel:'uses',        misconfig:false },
+  { source:'pod-backend',       target:'sa-backend',         rel:'uses',        misconfig:false },
+  { source:'sa-backend',        target:'role-pod-exec',      rel:'bound_to',    misconfig:true  },
+  { source:'role-pod-exec',     target:'pod-ci-runner',      rel:'can_exec',    misconfig:true  },
+  { source:'pod-ci-runner',     target:'sa-ci',              rel:'uses',        misconfig:false },
+  { source:'sa-ci',             target:'secret-ci-token',    rel:'mounts',      misconfig:false },
+  { source:'secret-ci-token',   target:'db-production',      rel:'can_read',    misconfig:false },
+  { source:'user-ci-bot',       target:'pod-ci-runner',      rel:'uses',        misconfig:false },
+  { source:'sa-ci',             target:'clusterrole-admin',  rel:'bound_to',    misconfig:true  },
+  { source:'clusterrole-admin', target:'secret-master-key',  rel:'can_read',    misconfig:false },
+  { source:'user-dev2',         target:'pod-worker',         rel:'uses',        misconfig:false },
+  { source:'pod-worker',        target:'sa-worker',          rel:'uses',        misconfig:false },
+  { source:'sa-worker',         target:'cm-db-config',       rel:'can_read',    misconfig:false },
+  { source:'cm-db-config',      target:'db-analytics',       rel:'can_read',    misconfig:true  },
+  { source:'sa-frontend',       target:'role-pod-exec',      rel:'bound_to',    misconfig:true  },
+  { source:'role-pod-exec',     target:'sa-backend',         rel:'impersonates',misconfig:true  },
+  { source:'pod-logger',        target:'sa-logger',          rel:'uses',        misconfig:false },
+  { source:'sa-logger',         target:'role-log-reader',    rel:'bound_to',    misconfig:false },
+  { source:'pod-backend',       target:'secret-api-key',     rel:'mounts',      misconfig:false },
+  { source:'secret-api-key',    target:'db-analytics',       rel:'can_read',    misconfig:false },
+  { source:'sa-ci',             target:'role-ci-deploy',     rel:'bound_to',    misconfig:false },
+  { source:'role-ci-deploy',    target:'pod-ci-runner',      rel:'can_exec',    misconfig:true  },
+];
+
+const NODE_COL = { entry:'#638cff', crown:'#ff4d6a', pivot:'#f5a623', normal:'#4a5a80' };
+const ENTITY_INITIAL = { LoadBalancer:'LB',User:'U',Pod:'P',ServiceAccount:'SA',Role:'R',ClusterRole:'CR',Secret:'S',ConfigMap:'CM',Database:'DB' };
+
+let sim, svgSel, zoomBeh, linkSel, nodeSel, labelSel;
+let graphInited = false;
+
+function initGraph() {
+  if (graphInited) return;
+  graphInited = true;
+
+  const svgEl = document.getElementById('graph-svg');
+  const W = svgEl.clientWidth || 900;
+  const H = 520;
+
+  svgSel = d3.select('#graph-svg');
+  svgSel.selectAll('*').remove();
+
+  const defs = svgSel.append('defs');
+
+  // Arrow markers
+  [['atk','#ff4d6a',0.9],['nrm','#2a3a60',0.4],['mis','#f5a623',0.7]].forEach(([id,col,op]) => {
+    defs.append('marker').attr('id','arr-'+id)
+      .attr('viewBox','0 -4 10 8').attr('refX',20).attr('refY',0)
+      .attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto')
+      .append('path').attr('d','M0,-4L10,0L0,4').attr('fill',col).attr('opacity',op);
+  });
+
+  // Glow filter
+  const f = defs.append('filter').attr('id','glow').attr('x','-60%').attr('y','-60%').attr('width','220%').attr('height','220%');
+  f.append('feGaussianBlur').attr('stdDeviation','3').attr('result','blur');
+  const fm = f.append('feMerge');
+  fm.append('feMergeNode').attr('in','blur');
+  fm.append('feMergeNode').attr('in','SourceGraphic');
+
+  const g = svgSel.append('g');
+
+  zoomBeh = d3.zoom().scaleExtent([0.15,4]).on('zoom', e => g.attr('transform', e.transform));
+  svgSel.call(zoomBeh).on('dblclick.zoom',null);
+
+  const nodes = G_NODES.map(d => ({...d}));
+  const links = G_EDGES.map(d => ({...d}));
+
+  sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d=>d.id).distance(d => {
+      const k = `${d.source.id||d.source}|${d.target.id||d.target}`;
+      return ATTACK_KEYS.has(k) ? 85 : 115;
+    }).strength(0.55))
+    .force('charge', d3.forceManyBody().strength(-300))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide().radius(26))
+    .force('x', d3.forceX(W/2).strength(0.03))
+    .force('y', d3.forceY(H/2).strength(0.03));
+
+  // Links
+  linkSel = g.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke', d => {
+      const k = `${d.source.id||d.source}|${d.target.id||d.target}`;
+      return ATTACK_KEYS.has(k) ? '#ff4d6a' : d.misconfig ? '#f5a623' : '#2a3a60';
+    })
+    .attr('stroke-width', d => {
+      const k = `${d.source.id||d.source}|${d.target.id||d.target}`;
+      return ATTACK_KEYS.has(k) ? 1.8 : 1;
+    })
+    .attr('stroke-opacity', d => {
+      const k = `${d.source.id||d.source}|${d.target.id||d.target}`;
+      return ATTACK_KEYS.has(k) ? 0.85 : 0.3;
+    })
+    .attr('marker-end', d => {
+      const k = `${d.source.id||d.source}|${d.target.id||d.target}`;
+      return ATTACK_KEYS.has(k) ? 'url(#arr-atk)' : d.misconfig ? 'url(#arr-mis)' : 'url(#arr-nrm)';
+    });
+
+  // Node groups
+  const ng = g.append('g').selectAll('g').data(nodes).join('g')
+    .attr('cursor','pointer')
+    .call(d3.drag()
+      .on('start',(e,d)=>{ if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (e,d)=>{ d.fx=e.x; d.fy=e.y; })
+      .on('end',  (e,d)=>{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
+    )
+    .on('click',    (e,d) => { e.stopPropagation(); selectGraphNode(d, links, nodeSel); })
+    .on('mouseover',(e,d) => showTT(e,d))
+    .on('mousemove', e    => moveTT(e))
+    .on('mouseout',  ()   => hideTT());
+
+  // Glow ring for important nodes
+  ng.filter(d => d.type !== 'normal').append('circle')
+    .attr('r', d => nR(d)+5).attr('fill','none')
+    .attr('stroke', d => NODE_COL[d.type]).attr('stroke-width',1).attr('stroke-opacity',.25)
+    .attr('filter','url(#glow)');
+
+  // Main circle
+  nodeSel = ng.append('circle')
+    .attr('r', d => nR(d))
+    .attr('fill', d => NODE_COL[d.type])
+    .attr('stroke', d => NODE_COL[d.type])
+    .attr('stroke-width', 1.5)
+    .attr('fill-opacity', d => d.type==='normal' ? 0.5 : 0.85);
+
+  // Entity label inside circle
+  ng.append('text')
+    .attr('text-anchor','middle').attr('dominant-baseline','central')
+    .attr('font-family',"'JetBrains Mono',monospace").attr('font-size',8).attr('font-weight',700)
+    .attr('fill','white').attr('fill-opacity',.9).attr('pointer-events','none')
+    .text(d => ENTITY_INITIAL[d.entity] || d.entity[0]);
+
+  // Name labels below node
+  labelSel = ng.append('text')
+    .attr('text-anchor','middle').attr('dy', d => nR(d)+12)
+    .attr('font-family',"'JetBrains Mono',monospace").attr('font-size',9)
+    .attr('fill', d => d.type==='normal' ? '#6070a0' : NODE_COL[d.type])
+    .attr('fill-opacity', d => d.type==='normal' ? 0.65 : 1)
+    .attr('pointer-events','none')
+    .text(d => d.id.length > 14 ? d.id.slice(0,13)+'…' : d.id);
+
+  svgSel.on('click', () => {
+    document.getElementById('sel-node-card').style.display = 'none';
+    nodeSel.attr('stroke-width',1.5).attr('fill-opacity', d => d.type==='normal'?0.5:0.85);
+  });
+
+  sim.on('tick', () => {
+    linkSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+           .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    ng.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+}
+
+function nR(d) {
+  return d.type==='crown'?18:d.type==='entry'?15:d.type==='pivot'?13:9;
+}
+
+function showTT(e, d) {
+  document.getElementById('tt-name').textContent = d.id;
+  document.getElementById('tt-body').innerHTML =
+    `type&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${d.entity}<br>namespace&nbsp;${d.ns}<br>risk&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${d.risk}/10${d.cves?'<br>cves&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'+d.cves.join(', '):''}`;
+  document.getElementById('node-tooltip').style.display = 'block';
+  moveTT(e);
+}
+function moveTT(e) {
+  const tt = document.getElementById('node-tooltip');
+  const box = document.getElementById('graph-svg').getBoundingClientRect();
+  let x = e.clientX - box.left + 14, y = e.clientY - box.top - 10;
+  if (x + 220 > box.width)  x -= 240;
+  if (y + 130 > box.height) y -= 130;
+  tt.style.left = x+'px'; tt.style.top = y+'px';
+}
+function hideTT() { document.getElementById('node-tooltip').style.display='none'; }
+
+function selectGraphNode(d, links, nSel) {
+  nSel.attr('stroke-width', n => n.id===d.id?3:1.5)
+      .attr('fill-opacity', n => n.id===d.id?1:n.type==='normal'?0.25:0.45);
+
+  const card = document.getElementById('sel-node-card');
+  card.style.display = 'block';
+  document.getElementById('sel-node-title').textContent = d.id;
+  document.getElementById('sel-node-sub').textContent   = `${d.entity} · namespace: ${d.ns}`;
+
+  const bc = d.type==='crown'?'badge-red':d.type==='entry'?'badge-accent':d.type==='pivot'?'badge-amber':'badge-green';
+  document.getElementById('sel-node-badge').innerHTML = `<span class="badge ${bc}">${d.type.toUpperCase()}</span>`;
+
+  const rCol = d.risk>=8?'var(--red)':d.risk>=5?'var(--amber)':'var(--green)';
+  document.getElementById('sel-node-props').innerHTML = `
+    <div style="font-family:var(--mono);font-size:11px;line-height:2;color:var(--text2)">
+      <div><span style="color:var(--text0);font-weight:700;display:inline-block;min-width:100px">Entity type</span>${d.entity}</div>
+      <div><span style="color:var(--text0);font-weight:700;display:inline-block;min-width:100px">Namespace</span>${d.ns}</div>
+      <div><span style="color:var(--text0);font-weight:700;display:inline-block;min-width:100px">Risk score</span><span style="color:${rCol};font-weight:700">${d.risk}/10</span></div>
+      <div><span style="color:var(--text0);font-weight:700;display:inline-block;min-width:100px">CVEs</span>${d.cves&&d.cves.length?d.cves.map(c=>`<span class="cve-tag">${c}</span>`).join(' '):'None'}</div>
+      <div><span style="color:var(--text0);font-weight:700;display:inline-block;min-width:100px">Role</span>${d.type==='crown'?'Crown jewel — target':d.type==='entry'?'Entry point — attacker source':d.type==='pivot'?'Pivot — on attack path':'Normal node'}</div>
+    </div>`;
+
+  const out = links.filter(l => (l.source.id||l.source)===d.id);
+  const inp = links.filter(l => (l.target.id||l.target)===d.id);
+  document.getElementById('sel-node-edges').innerHTML = `
+    <div style="font-family:var(--mono);font-size:11px;color:var(--text2)">
+      <div style="font-weight:700;color:var(--text0);margin-bottom:6px">Connections (${out.length+inp.length})</div>
+      ${out.map(l=>`<div style="padding:3px 0;border-bottom:1px solid var(--border)">→ <span style="color:var(--text0)">${l.target.id||l.target}</span> <span style="color:var(--text3)">[${l.rel}]</span>${l.misconfig?' <span class="badge badge-amber" style="font-size:8px">misconfig</span>':''}</div>`).join('')}
+      ${inp.map(l=>`<div style="padding:3px 0;border-bottom:1px solid var(--border)">← <span style="color:var(--text0)">${l.source.id||l.source}</span> <span style="color:var(--text3)">[${l.rel}]</span></div>`).join('')}
+    </div>`;
+}
+
+function zoomReset() { svgSel.transition().duration(500).call(zoomBeh.transform, d3.zoomIdentity); }
+function reheat()    { if(sim) sim.alpha(0.5).restart(); }
+
+function filterGraph(f, el) {
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  if (!sim) return;
+  if (f==='attack') {
+    linkSel.attr('stroke-opacity', d => ATTACK_KEYS.has(`${d.source.id||d.source}|${d.target.id||d.target}`) ? 0.9 : 0.05);
+    nodeSel.attr('fill-opacity', d => ['entry','crown','pivot'].includes(d.type) ? 0.9 : 0.1);
+    labelSel.attr('fill-opacity', d => ['entry','crown','pivot'].includes(d.type) ? 1 : 0.1);
+  } else if (f==='critical') {
+    linkSel.attr('stroke-opacity', 0.15);
+    nodeSel.attr('fill-opacity', d => d.risk>=7 ? 0.9 : 0.1);
+    labelSel.attr('fill-opacity', d => d.risk>=7 ? 1 : 0.08);
+  } else {
+    linkSel.attr('stroke-opacity', d => ATTACK_KEYS.has(`${d.source.id||d.source}|${d.target.id||d.target}`) ? 0.85 : 0.3);
+    nodeSel.attr('fill-opacity', d => d.type==='normal' ? 0.5 : 0.85);
+    labelSel.attr('fill-opacity', d => d.type==='normal' ? 0.65 : 1);
+  }
+}
+</script>
+</body>
+</html>
