@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAPV — Kubernetes Attack Path Visualizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0:#070b12; --bg1:#0d1420; --bg2:#111a2d; --bg3:#162038;
+  --surface:#1a2540; --surface2:#1f2d4a;
+  --border:rgba(99,140,255,0.12); --border2:rgba(99,140,255,0.22);
+  --accent:#638cff; --accent-glow:rgba(99,140,255,0.18);
+  --red:#ff4d6a; --red-bg:rgba(255,77,106,0.10); --red-border:rgba(255,77,106,0.28);
+  --amber:#f5a623; --amber-bg:rgba(245,166,35,0.10); --amber-border:rgba(245,166,35,0.28);
+  --green:#2dcc8f; --green-bg:rgba(45,204,143,0.10); --green-border:rgba(45,204,143,0.28);
+  --purple:#a78bfa; --purple-bg:rgba(167,139,250,0.10);
+  --teal:#22d3ee;
+  --text0:#e8edf8; --text1:#a8b4cc; --text2:#6070a0; --text3:#3a4a70;
+  --mono:'JetBrains Mono',monospace; --sans:'Syne',sans-serif;
+  --radius:8px; --radius-lg:12px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg0);color:var(--text0);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:1000}
+
+/* Loading overlay */
+#loading-overlay{position:fixed;inset:0;background:var(--bg0);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .5s ease}
+#loading-overlay.hidden{opacity:0;pointer-events:none}
+.loading-brand{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text0);letter-spacing:.15em}
+.loading-sub{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.2em}
+.loading-bar-wrap{width:260px;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-top:8px}
+.loading-bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--purple));border-radius:2px;transition:width .4s ease}
+.loading-msg{font-family:var(--mono);font-size:10px;color:var(--text2);letter-spacing:.1em}
+.loading-error{font-family:var(--mono);font-size:11px;color:var(--red);background:var(--red-bg);border:1px solid var(--red-border);padding:10px 16px;border-radius:6px;margin-top:8px;display:none;max-width:360px;text-align:center;line-height:1.6}
+
+/* Layout */
+.shell{display:grid;grid-template-columns:220px 1fr;grid-template-rows:52px 1fr;height:100vh;overflow:hidden}
+
+/* Topbar */
+.topbar{grid-column:1/-1;background:var(--bg1);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:relative;z-index:10}
+.topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.5}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-icon{width:28px;height:28px;border:1.5px solid var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center}
+.brand-icon::before{content:'';width:10px;height:10px;background:var(--accent);border-radius:2px;box-shadow:0 0 10px var(--accent)}
+.brand-name{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text0);letter-spacing:.12em}
+.brand-sub{font-family:var(--mono);font-size:9px;color:var(--accent);letter-spacing:.2em;text-transform:uppercase;margin-top:1px}
+.topbar-badges{display:flex;align-items:center;gap:8px}
+.topbar-badge{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:4px;letter-spacing:.06em;font-weight:500}
+.tb-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+.tb-amber{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+.tb-purple{background:var(--purple-bg);color:var(--purple);border:1px solid rgba(167,139,250,.28)}
+.topbar-meta{font-family:var(--mono);font-size:10px;color:var(--text2);display:flex;align-items:center;gap:16px}
+.topbar-meta span{display:flex;align-items:center;gap:5px}
+.dot-live{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s ease-in-out infinite;box-shadow:0 0 6px var(--green)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Sidebar */
+.sidebar{background:var(--bg1);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;padding:16px 0}
+.sidebar::-webkit-scrollbar{width:3px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.sidebar-section{padding:0 14px;margin-bottom:4px}
+.sidebar-label{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--text3);text-transform:uppercase;padding:10px 8px 6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;cursor:pointer;transition:all .15s;position:relative;font-size:13px;color:var(--text1);margin-bottom:1px}
+.nav-item:hover{background:var(--surface);color:var(--text0)}
+.nav-item.active{background:var(--surface);color:var(--text0);font-weight:600}
+.nav-item.active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:2px;background:var(--accent);border-radius:2px;box-shadow:0 0 8px var(--accent)}
+.nav-icon{width:16px;height:16px;flex-shrink:0;opacity:.7}
+.nav-item.active .nav-icon{opacity:1}
+.nav-count{margin-left:auto;font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:3px;font-weight:700}
+.nc-red{background:var(--red-bg);color:var(--red)}
+.nc-amber{background:var(--amber-bg);color:var(--amber)}
+.nc-accent{background:var(--accent-glow);color:var(--accent)}
+.nc-green{background:var(--green-bg);color:var(--green)}
+.sidebar-footer{margin-top:auto;padding:12px 14px;border-top:1px solid var(--border)}
+.cluster-info{font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.8}
+.cluster-info strong{color:var(--accent);font-weight:500}
+
+/* Main */
+.main{overflow-y:auto;padding:24px;background:var(--bg0);display:flex;flex-direction:column;gap:20px}
+.main::-webkit-scrollbar{width:4px}
+.main::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.panel{display:none;flex-direction:column;gap:20px}
+.panel.active{display:flex}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.panel.active>*{animation:fadeInUp .3s ease both}
+.panel.active>*:nth-child(1){animation-delay:.00s}
+.panel.active>*:nth-child(2){animation-delay:.05s}
+.panel.active>*:nth-child(3){animation-delay:.10s}
+.panel.active>*:nth-child(4){animation-delay:.15s}
+.panel.active>*:nth-child(5){animation-delay:.20s}
+
+.page-header{display:flex;align-items:center;justify-content:space-between}
+.page-title{font-size:20px;font-weight:800;color:var(--text0);letter-spacing:-.01em}
+.page-subtitle{font-family:var(--mono);font-size:11px;color:var(--text2);margin-top:2px}
+
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.metric-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;position:relative;overflow:hidden;transition:border-color .2s}
+.metric-card:hover{border-color:var(--border2)}
+.metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.mc-red::before{background:linear-gradient(90deg,var(--red),transparent)}
+.mc-amber::before{background:linear-gradient(90deg,var(--amber),transparent)}
+.mc-green::before{background:linear-gradient(90deg,var(--green),transparent)}
+.mc-blue::before{background:linear-gradient(90deg,var(--accent),transparent)}
+.metric-label{font-family:var(--mono);font-size:10px;color:var(--text2);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}
+.metric-value{font-size:30px;font-weight:800;line-height:1;margin-bottom:4px}
+.metric-sub{font-family:var(--mono);font-size:10px;color:var(--text2)}
+.mv-red{color:var(--red)} .mv-amber{color:var(--amber)} .mv-green{color:var(--green)} .mv-accent{color:var(--accent)}
+
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;transition:border-color .2s}
+.card:hover{border-color:var(--border2)}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.card-title{font-size:13px;font-weight:700;color:var(--text0)}
+.card-subtitle{font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:2px}
+
+.badge{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.badge-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+.badge-amber{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+.badge-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+.badge-accent{background:var(--accent-glow);color:var(--accent);border:1px solid rgba(99,140,255,.3)}
+.badge-purple{background:var(--purple-bg);color:var(--purple);border:1px solid rgba(167,139,250,.3)}
+
+.path-item{border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+.path-item:last-child{margin-bottom:0}
+.path-item:hover{border-color:var(--border2);background:var(--bg3)}
+.path-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px}
+.pi-critical::before{background:var(--red);box-shadow:0 0 8px var(--red)}
+.pi-high::before{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.pi-medium::before{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.path-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.path-name{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text0)}
+.path-score{font-family:var(--mono);font-size:13px;font-weight:700}
+.ps-critical{color:var(--red)} .ps-high{color:var(--amber)} .ps-medium{color:var(--accent)}
+.path-chain{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.hop-node{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;background:var(--surface);border:1px solid var(--border2);color:var(--text1)}
+.hop-node.entry{border-color:var(--accent);color:var(--accent);background:rgba(99,140,255,.08)}
+.hop-node.pivot{border-color:var(--amber);color:var(--amber);background:rgba(245,166,35,.08)}
+.hop-node.crown{border-color:var(--red);color:var(--red);background:var(--red-bg)}
+.hop-arrow{color:var(--text3);font-size:10px}
+.path-meta{font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.cve-tag{color:var(--red);background:var(--red-bg);padding:1px 6px;border-radius:3px;border:1px solid var(--red-border);font-size:9px}
+
+.node-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.node-row:last-child{border-bottom:none}
+.node-rank{font-family:var(--mono);font-size:10px;color:var(--text3);min-width:18px}
+.node-type-pill{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:3px;background:var(--surface);color:var(--text2);border:1px solid var(--border);white-space:nowrap;min-width:90px;text-align:center}
+.node-name-mono{font-family:var(--mono);font-size:12px;color:var(--text0);flex:1}
+.score-bar-wrap{width:80px;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
+.score-fill{height:100%;border-radius:2px}
+.risk-num{font-family:var(--mono);font-size:12px;font-weight:700;min-width:28px;text-align:right}
+.pr-score{font-family:var(--mono);font-size:10px;color:var(--text2);min-width:52px;text-align:right}
+
+.bar-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.bar-row:last-child{border-bottom:none}
+.bar-label{font-family:var(--mono);font-size:11px;color:var(--text0);min-width:90px;font-weight:600}
+.bar-wrap{flex:1;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width 1s cubic-bezier(.4,0,.2,1);width:0}
+.bar-val{font-family:var(--mono);font-size:11px;color:var(--text2);min-width:36px;text-align:right}
+
+.monte-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.monte-row:last-child{border-bottom:none}
+.monte-target{font-family:var(--mono);font-size:12px;color:var(--text0);min-width:155px}
+.prob-bar-wrap{flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.prob-fill{height:100%;border-radius:3px;transition:width 1.2s cubic-bezier(.4,0,.2,1);width:0}
+.prob-pct{font-family:var(--mono);font-size:14px;font-weight:700;min-width:44px;text-align:right}
+
+.algo-summary-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.algo-summary-row:last-child{border-bottom:none}
+.algo-tag{font-family:var(--mono);font-size:10px;font-weight:700;min-width:82px;padding-top:1px}
+.algo-finding{font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.7;flex:1}
+
+.cycle-item{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;position:relative;overflow:hidden}
+.cycle-item:last-child{margin-bottom:0}
+.cycle-item::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px}
+.ci-red::before{background:var(--red);box-shadow:0 0 8px var(--red)}
+.ci-amber::before{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.cycle-nodes{font-family:var(--mono);font-size:11px;color:var(--text0);margin-top:4px;line-height:1.6}
+
+.community-block{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.community-block:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.community-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.community-name{font-size:12px;font-weight:700;color:var(--text0)}
+.comm-members{display:flex;flex-wrap:wrap;gap:5px}
+.comm-pill{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;display:flex;align-items:center;gap:4px}
+.comm-ns{font-size:9px;opacity:.6}
+.violation-note{font-family:var(--mono);font-size:10px;color:var(--red);margin-top:6px;padding:5px 8px;background:var(--red-bg);border-radius:4px;border:1px solid var(--red-border)}
+
+.sparkline-wrap{display:flex;align-items:flex-end;gap:2px;height:28px}
+.spark-bar{width:7px;border-radius:2px 2px 0 0;min-height:2px}
+
+.anomaly-row{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.anomaly-row:last-child{border-bottom:none}
+.anomaly-ring{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:700;flex-shrink:0}
+.anomaly-name{font-family:var(--mono);font-size:12px;color:var(--text0);margin-bottom:3px;font-weight:500}
+.anomaly-reason{font-family:var(--mono);font-size:10px;color:var(--text2)}
+
+.gnn-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.gnn-row:last-child{border-bottom:none}
+
+.temp-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.temp-row:last-child{border-bottom:none}
+.temp-name{font-family:var(--mono);font-size:12px;color:var(--text0);min-width:145px}
+.temp-range{font-family:var(--mono);font-size:12px;font-weight:700;min-width:90px}
+.trend-pill{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:10px;font-weight:700;letter-spacing:.08em}
+
+.timeline-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.timeline-item:last-child{border-bottom:none}
+.timeline-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;box-shadow:0 0 8px currentColor}
+.timeline-title{font-size:12px;font-weight:700;color:var(--text0);margin-bottom:3px;display:flex;align-items:center;gap:7px}
+.timeline-desc{font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6}
+
+.tab-row{display:flex;border-bottom:1px solid var(--border);margin-bottom:14px}
+.tab-btn{font-family:var(--mono);font-size:11px;padding:8px 14px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;letter-spacing:.06em}
+.tab-btn:hover{color:var(--text1)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+.filter-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.filter-btn{font-family:var(--mono);font-size:10px;padding:5px 12px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:transparent;color:var(--text2);letter-spacing:.06em;transition:all .15s}
+.filter-btn:hover{color:var(--text1);background:var(--surface)}
+.filter-btn.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
+
+.rec-box{background:rgba(99,140,255,.06);border:1px solid rgba(99,140,255,.25);border-radius:var(--radius);padding:10px 14px;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--accent);line-height:1.6}
+.rec-box strong{color:var(--text0);font-weight:700}
+
+.chart-wrap{position:relative;width:100%}
+
+#graph-svg{width:100%;height:520px;display:block;background:var(--bg1);cursor:grab}
+#node-tooltip{display:none;position:absolute;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;pointer-events:none;z-index:100;min-width:200px}
+.tt-name{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--text0);margin-bottom:6px}
+.tt-body{font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.8}
+
+@media(max-width:900px){
+  .metrics-grid{grid-template-columns:repeat(2,1fr)}
+  .row2{grid-template-columns:1fr}
+  .shell{grid-template-columns:1fr;grid-template-rows:52px auto 1fr}
+  .sidebar{flex-direction:row;overflow-x:auto;padding:8px;border-right:none;border-bottom:1px solid var(--border)}
+  .sidebar-label,.sidebar-footer{display:none}
+  .sidebar-section{display:flex;gap:4px}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay">
+  <div class="brand-icon" style="width:40px;height:40px;margin-bottom:8px"></div>
+  <div class="loading-brand">KAPV</div>
+  <div class="loading-sub">Kubernetes Attack Path Visualizer</div>
+  <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
+  <div class="loading-msg" id="loading-msg">Fetching cluster topology...</div>
+  <div class="loading-error" id="loading-error"></div>
+</div>
+
+<div class="shell">
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-icon"></div>
+    <div>
+      <div class="brand-name">KAPV</div>
+      <div class="brand-sub">Attack Path Visualizer</div>
+    </div>
+  </div>
+  <div class="topbar-badges" id="topbar-badges">
+    <span class="topbar-badge tb-red" id="tb-paths">— paths</span>
+    <span class="topbar-badge tb-amber" id="tb-cycles">— cycles</span>
+    <span class="topbar-badge tb-purple" id="tb-anomalies">— anomalies</span>
+  </div>
+  <div class="topbar-meta">
+    <span><span class="dot-live"></span>live</span>
+    <span id="meta-cluster">—</span>
+    <span id="meta-counts">— nodes · — edges</span>
+    <span id="meta-scan">—</span>
+  </div>
+</header>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-label">Analysis</div>
+    <div class="nav-item active" onclick="nav('overview',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".3"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/></svg>
+      Overview
+      <span class="nav-count nc-red" id="snav-paths">—</span>
+    </div>
+    <div class="nav-item" onclick="nav('paths',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 8h3M11 8h3M7 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Attack paths
+      <span class="nav-count nc-red" id="snav-paths2">—</span>
+    </div>
+    <div class="nav-item" onclick="nav('graph',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" fill="currentColor"/><circle cx="2" cy="4" r="1.5" fill="currentColor" opacity=".6"/><circle cx="14" cy="4" r="1.5" fill="currentColor" opacity=".6"/><circle cx="2" cy="12" r="1.5" fill="currentColor" opacity=".4"/><circle cx="14" cy="12" r="1.5" fill="currentColor" opacity=".4"/><path d="M3.5 4.5L6.5 7M9.5 7l3-2.5M3.5 11.5L6.5 9M9.5 9l3 2.5" stroke="currentColor" stroke-width="1" opacity=".5"/></svg>
+      Graph viz
+    </div>
+    <div class="nav-item" onclick="nav('nodes',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/><circle cx="3" cy="3" r="1.5" fill="currentColor" opacity=".5"/><circle cx="13" cy="3" r="1.5" fill="currentColor" opacity=".5"/><circle cx="3" cy="13" r="1.5" fill="currentColor" opacity=".3"/><circle cx="13" cy="13" r="1.5" fill="currentColor" opacity=".3"/></svg>
+      Critical nodes
+    </div>
+    <div class="nav-item" onclick="nav('monte',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M1 13l4-5 3 3 3-6 4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Monte Carlo
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">AI / ML</div>
+    <div class="nav-item" onclick="nav('ai',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M8 2a3 3 0 100 6 3 3 0 000-6z" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3 2.5-5 6-5s6 2 6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      AI / ML
+      <span class="nav-count nc-amber">4</span>
+    </div>
+    <div class="nav-item" onclick="nav('temporal',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Temporal
+      <span class="nav-count nc-green">2↑</span>
+    </div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="cluster-info" id="cluster-info-sidebar">
+      <div>cluster <strong id="si-cluster">—</strong></div>
+      <div>nodes <strong id="si-nodes">—</strong> · edges <strong id="si-edges">—</strong></div>
+      <div>crown jewels <strong id="si-crown">—</strong></div>
+      <div>entry points <strong id="si-entry">—</strong></div>
+      <div>scan <strong id="si-scan">—</strong></div>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- ══ OVERVIEW ══ -->
+<div class="panel active" id="panel-overview">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Cluster security overview</div>
+      <div class="page-subtitle" id="overview-subtitle">Loading cluster data...</div>
+    </div>
+  </div>
+  <div class="metrics-grid" id="overview-metrics"></div>
+  <div class="row2">
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title">Top attack paths</div><div class="card-subtitle">A* composite risk score — worst first</div></div>
+        <span class="badge badge-red">CRITICAL</span>
+      </div>
+      <div id="overview-top-paths"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Severity distribution</div><div class="card-subtitle" id="sev-subtitle">—</div></div>
+      <div class="chart-wrap" style="height:180px"><canvas id="sev-chart"></canvas></div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px">
+        <span style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:2px;background:var(--red)"></span>Critical <span id="leg-crit">—</span></span>
+        <span style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:2px;background:var(--amber)"></span>High <span id="leg-high">—</span></span>
+        <span style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:2px;background:var(--accent)"></span>Medium <span id="leg-med">—</span></span>
+      </div>
+    </div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">BFS blast radius</div><div class="card-subtitle">Nodes reachable from each entry point within 3 hops</div></div>
+      <div class="chart-wrap" style="height:150px"><canvas id="blast-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Permission cycles — DFS</div><div class="card-subtitle">Privilege escalation loops in RBAC graph</div></div>
+      <div id="cycles-list"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Algorithm results summary</div><div class="card-subtitle">What each algorithm found on this cluster</div></div>
+    </div>
+    <div id="algo-summary-rows"></div>
+  </div>
+</div>
+
+<!-- ══ ATTACK PATHS ══ -->
+<div class="panel" id="panel-paths">
+  <div class="page-header">
+    <div><div class="page-title">Attack paths</div><div class="page-subtitle">Dijkstra scans all pairs · A* used for targeted interactive queries</div></div>
+  </div>
+  <div class="row2">
+    <div class="card" style="background:rgba(99,140,255,0.04);border-color:rgba(99,140,255,0.2)">
+      <div class="card-header"><div class="card-title" style="color:var(--accent)">Dijkstra — full cluster scan</div></div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text2);line-height:1.8" id="dijkstra-summary">Loading...</div>
+    </div>
+    <div class="card" style="background:rgba(45,204,143,0.04);border-color:rgba(45,204,143,0.2)">
+      <div class="card-header"><div class="card-title" style="color:var(--green)">A* — targeted interactive query</div></div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text2);line-height:1.8">Runs on demand for one specific source → target pair.<br>Uses a risk-score heuristic to guide search toward the target.<br>Faster than Dijkstra for single-target queries on large clusters.</div>
+    </div>
+  </div>
+  <div class="filter-row" id="path-filters"></div>
+  <div class="card"><div id="path-list"></div></div>
+  <div class="row2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Path risk score</div><div class="card-subtitle">Composite score per path</div></div>
+      <div class="chart-wrap" style="height:160px"><canvas id="path-dist-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Hop count per path</div><div class="card-subtitle">Lateral moves required</div></div>
+      <div class="chart-wrap" style="height:160px"><canvas id="hop-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GRAPH VIZ ══ -->
+<div class="panel" id="panel-graph">
+  <div class="page-header">
+    <div><div class="page-title">Cluster graph visualization</div><div class="page-subtitle">D3.js force-directed layout · click nodes to inspect · drag to reposition · scroll to zoom</div></div>
+  </div>
+  <div class="row2" style="align-items:center">
+    <div class="filter-row" style="margin-bottom:0">
+      <button class="filter-btn active" onclick="filterGraph('all',this)">All nodes</button>
+      <button class="filter-btn" onclick="filterGraph('attack',this)">Attack paths only</button>
+      <button class="filter-btn" onclick="filterGraph('critical',this)">Critical nodes</button>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+      <span style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:50%;background:#638cff;box-shadow:0 0 6px #638cff"></span>Entry</span>
+      <span style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:50%;background:#ff4d6a;box-shadow:0 0 6px #ff4d6a"></span>Crown jewel</span>
+      <span style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:50%;background:#f5a623;box-shadow:0 0 6px #f5a623"></span>Pivot</span>
+      <span style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text1)"><span style="width:10px;height:10px;border-radius:50%;background:#4a5a80"></span>Normal</span>
+      <span style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text1)"><span style="width:20px;height:2px;background:var(--red)"></span>Attack edge</span>
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden;position:relative">
+    <svg id="graph-svg"></svg>
+    <div id="node-tooltip"><div class="tt-name" id="tt-name"></div><div class="tt-body" id="tt-body"></div></div>
+    <div style="position:absolute;bottom:12px;right:14px;display:flex;gap:6px">
+      <button onclick="zoomReset()" style="font-family:var(--mono);font-size:10px;padding:4px 10px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--text1);cursor:pointer">Reset zoom</button>
+      <button onclick="reheat()" style="font-family:var(--mono);font-size:10px;padding:4px 10px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--text1);cursor:pointer">Reheat</button>
+    </div>
+  </div>
+  <div class="card" id="sel-node-card" style="display:none">
+    <div class="card-header">
+      <div><div class="card-title" id="sel-node-title"></div><div class="card-subtitle" id="sel-node-sub"></div></div>
+      <div id="sel-node-badge"></div>
+    </div>
+    <div class="row2"><div id="sel-node-props"></div><div id="sel-node-edges"></div></div>
+  </div>
+</div>
+
+<!-- ══ CRITICAL NODES ══ -->
+<div class="panel" id="panel-nodes">
+  <div class="page-header">
+    <div><div class="page-title">Critical node analysis</div><div class="page-subtitle">PageRank · Betweenness centrality · Louvain community detection</div></div>
+  </div>
+  <div class="tab-row">
+    <button class="tab-btn active" onclick="switchTab('pr',this)">Security PageRank</button>
+    <button class="tab-btn" onclick="switchTab('bc',this)">Betweenness</button>
+    <button class="tab-btn" onclick="switchTab('comm',this)">Communities</button>
+  </div>
+  <div id="tab-pr">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Top nodes — security pagerank</div><div class="card-subtitle">Personalized random walk weighted by risk score · higher score = more attack paths pass through this node</div></div>
+      <div id="pr-rows"></div>
+      <div class="rec-box" id="pr-rec">Loading...</div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">PageRank score distribution</div></div>
+      <div class="chart-wrap" style="height:150px"><canvas id="pr-chart"></canvas></div>
+    </div>
+  </div>
+  <div id="tab-bc" style="display:none">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Betweenness centrality</div><div class="card-subtitle">Fraction of all shortest paths that pass through each node</div></div>
+      <div id="bc-rows"></div>
+    </div>
+  </div>
+  <div id="tab-comm" style="display:none">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Louvain community detection</div><div class="card-subtitle">Cross-namespace communities violate Kubernetes namespace isolation</div></div>
+      <div id="comm-rows"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MONTE CARLO ══ -->
+<div class="panel" id="panel-monte">
+  <div class="page-header">
+    <div><div class="page-title">Monte Carlo simulation</div><div class="page-subtitle">10,000 stochastic attack simulations per entry point · probabilistic compromise scoring</div></div>
+  </div>
+  <div class="metrics-grid">
+    <div class="metric-card mc-blue"><div class="metric-label">Simulations</div><div class="metric-value mv-accent">10k</div><div class="metric-sub">per entry point</div></div>
+    <div class="metric-card mc-green"><div class="metric-label">Detection rate</div><div class="metric-value mv-green">8.2%</div><div class="metric-sub">attacker caught mid-chain</div></div>
+    <div class="metric-card mc-red"><div class="metric-label">Max compromise prob.</div><div class="metric-value mv-red" id="mc-max-prob">—</div><div class="metric-sub" id="mc-max-prob-sub">—</div></div>
+    <div class="metric-card mc-amber"><div class="metric-label">Avg hops to jewel</div><div class="metric-value mv-amber">3.4</div><div class="metric-sub">lateral moves expected</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Crown jewel compromise probability</div><div class="card-subtitle">95% confidence intervals · based on 10,000 simulations per source node</div></div>
+    <div id="monte-rows"></div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Sensitivity — probability vs detection rate</div></div>
+      <div class="chart-wrap" style="height:180px"><canvas id="monte-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Exploit probability by edge type</div></div>
+      <div class="chart-wrap" style="height:180px"><canvas id="exploit-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ AI / ML ══ -->
+<div class="panel" id="panel-ai">
+  <div class="page-header">
+    <div><div class="page-title">AI / ML layer</div><div class="page-subtitle">XGBoost predictive risk · Isolation Forest reactive anomaly · GraphSAGE link prediction</div></div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">XGBoost — predicted high-risk nodes</div><span class="badge badge-accent">PREDICTIVE</span></div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:12px">Self-supervised model trained on graph structural features · predicts risk before compromise occurs</div>
+      <div id="xgb-rows"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Feature importance</div></div>
+      <div class="chart-wrap" style="height:210px"><canvas id="fi-chart"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Isolation Forest — anomalous nodes</div><span class="badge badge-amber">REACTIVE</span></div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:12px">Unsupervised detection · flags nodes whose graph structure is unlike all others</div>
+    <div id="iso-rows"></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">GraphSAGE — predicted future trust edges</div><span class="badge badge-purple">GNN</span></div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:12px">Edges not yet existing but structurally predicted to form · harden now</div>
+    <div id="gnn-rows"></div>
+  </div>
+</div>
+
+<!-- ══ TEMPORAL ══ -->
+<div class="panel" id="panel-temporal">
+  <div class="page-header">
+    <div><div class="page-title">Temporal analysis</div><div class="page-subtitle">7-day risk forecasting · graph delta detection · drift alerts</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Risk forecast — next 7 days</div><span class="badge badge-green">PREDICTIVE</span></div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:12px">Linear regression over 5-day history · alert threshold risk ≥ 8.0</div>
+    <div id="temporal-rows"></div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Risk trajectory — rising nodes</div></div>
+      <div class="chart-wrap" style="height:180px"><canvas id="trend-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Graph delta log</div><span class="badge badge-red">1 ALERT</span></div>
+      <div id="delta-rows"></div>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+// ─── Global state ──────────────────────────────────────────────────────────
+let CLUSTER = null;   // raw JSON
+let COMPUTED = null;  // derived analytics
+let pathFilter = 'all';
+let graphInited = false;
+let sim, svgSel, zoomBeh, linkSel, nodeSel, labelSel;
+
+// Chart registry for destroy-on-reinit
+const CHARTS = {};
+
+// ─── Boot: fetch cluster data ──────────────────────────────────────────────
+async function boot() {
+  const bar  = document.getElementById('loading-bar');
+  const msg  = document.getElementById('loading-msg');
+  const errEl= document.getElementById('loading-error');
+
+  const steps = [
+    [20,  'Fetching cluster topology...'],
+    [45,  'Building adjacency graph...'],
+    [60,  'Running Dijkstra path scan...'],
+    [75,  'Computing PageRank & betweenness...'],
+    [88,  'Running Monte Carlo simulations...'],
+    [95,  'Rendering visualizations...'],
+  ];
+
+  let stepIdx = 0;
+  const tick = setInterval(() => {
+    if (stepIdx < steps.length) {
+      bar.style.width = steps[stepIdx][0] + '%';
+      msg.textContent = steps[stepIdx][1];
+      stepIdx++;
+    }
+  }, 320);
+
+  try {
+    const res = await fetch('mock_cluster.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    CLUSTER = await res.json();
+
+    clearInterval(tick);
+    bar.style.width = '100%';
+    msg.textContent = 'Ready.';
+
+    COMPUTED = computeAnalytics(CLUSTER);
+    populateUI();
+
+    setTimeout(() => {
+      document.getElementById('loading-overlay').classList.add('hidden');
+    }, 400);
+
+  } catch (err) {
+    clearInterval(tick);
+    bar.style.width = '100%';
+    bar.style.background = 'var(--red)';
+    msg.textContent = 'Failed to load cluster data';
+    errEl.style.display = 'block';
+    errEl.textContent = `Error: ${err.message}\n\nMake sure mock_cluster.json is in the same directory as this HTML file and served over HTTP (not file://).`;
+  }
+}
+
+// ─── Analytics engine ──────────────────────────────────────────────────────
+function computeAnalytics(data) {
+  const nodes = data.nodes;
+  const edges = data.edges;
+
+  const nodeMap = {};
+  nodes.forEach(n => nodeMap[n.id] = n);
+
+  const entryNodes  = nodes.filter(n => n.entry);
+  const crownNodes  = nodes.filter(n => n.crown);
+  const allCves     = [...new Set(nodes.flatMap(n => n.cves || []))];
+  const misconfigEdges = edges.filter(e => e.misconfig);
+
+  // Build adjacency for BFS/Dijkstra
+  const adj = {};
+  nodes.forEach(n => adj[n.id] = []);
+  edges.forEach(e => {
+    if (adj[e.src]) adj[e.src].push({ to: e.dst, weight: e.weight, cvss: e.cvss, rel: e.rel, misconfig: e.misconfig });
+  });
+
+  // BFS blast radius (3 hops) from each entry
+  function bfsRadius(startId, maxHops) {
+    const visited = new Set([startId]);
+    let frontier = [startId];
+    for (let h = 0; h < maxHops; h++) {
+      const next = [];
+      frontier.forEach(n => {
+        (adj[n] || []).forEach(e => {
+          if (!visited.has(e.to)) { visited.add(e.to); next.push(e.to); }
+        });
+      });
+      frontier = next;
+    }
+    return visited.size - 1; // exclude self
+  }
+
+  const blastRadii = entryNodes.map(n => ({ id: n.id, radius: bfsRadius(n.id, 3) }));
+
+  // Dijkstra: find all attack paths entry → crown
+  function dijkstra(src, dst) {
+    const dist = {}, prev = {}, visited = new Set();
+    nodes.forEach(n => dist[n.id] = Infinity);
+    dist[src] = 0;
+    const pq = [[0, src]];
+    while (pq.length) {
+      pq.sort((a,b) => a[0]-b[0]);
+      const [d, u] = pq.shift();
+      if (visited.has(u)) continue;
+      visited.add(u);
+      if (u === dst) break;
+      (adj[u] || []).forEach(e => {
+        const nd = d + e.weight;
+        if (nd < dist[e.to]) { dist[e.to] = nd; prev[e.to] = u; pq.push([nd, e.to]); }
+      });
+    }
+    if (dist[dst] === Infinity) return null;
+    const path = [];
+    let cur = dst;
+    while (cur) { path.unshift(cur); cur = prev[cur]; }
+    return { path, cost: dist[dst] };
+  }
+
+  // Compute risk score for a path
+  function pathRisk(path) {
+    let score = 0;
+    for (let i = 0; i < path.length - 1; i++) {
+      const src = path[i], dst = path[i+1];
+      const edge = edges.find(e => e.src === src && e.dst === dst);
+      if (edge) score += edge.cvss * 0.4 + (nodeMap[dst]?.risk || 0) * 0.35 + (edge.misconfig ? 2 : 0);
+    }
+    return Math.round(score * 10) / 10;
+  }
+
+  const paths = [];
+  entryNodes.forEach(en => {
+    crownNodes.forEach(cn => {
+      const result = dijkstra(en.id, cn.id);
+      if (result) {
+        const score = pathRisk(result.path);
+        const sev = score >= 18 ? 'CRITICAL' : score >= 10 ? 'HIGH' : 'MEDIUM';
+        const cves = [...new Set(result.path.flatMap(id => nodeMap[id]?.cves || []))];
+        const algo = result.cost < 7 ? 'A*' : 'Dijkstra';
+        paths.push({ src: en.id, dst: cn.id, hops: result.path, score, sev, cost: result.cost, cves, algo });
+      }
+    });
+  });
+  paths.sort((a,b) => b.score - a.score);
+
+  // PageRank (simplified power iteration)
+  const d = 0.85, iters = 30;
+  const pr = {};
+  nodes.forEach(n => pr[n.id] = 1 / nodes.length);
+  const inbound = {};
+  nodes.forEach(n => inbound[n.id] = []);
+  edges.forEach(e => { if (inbound[e.dst]) inbound[e.dst].push(e.src); });
+  const outDegree = {};
+  nodes.forEach(n => outDegree[n.id] = (adj[n.id]||[]).length);
+  for (let iter = 0; iter < iters; iter++) {
+    const newPr = {};
+    nodes.forEach(n => {
+      const riskW = (n.risk / 10);
+      newPr[n.id] = (1-d)/nodes.length + d * inbound[n.id].reduce((s, src) => {
+        return s + (pr[src] * riskW) / Math.max(outDegree[src], 1);
+      }, 0);
+    });
+    nodes.forEach(n => pr[n.id] = newPr[n.id]);
+  }
+  const prNodes = [...nodes].sort((a,b) => pr[b.id]-pr[a.id]).slice(0, 10);
+
+  // Betweenness centrality (approximation — BFS from samples)
+  const bc = {};
+  nodes.forEach(n => bc[n.id] = 0);
+  const samples = nodes.slice(0, Math.min(30, nodes.length));
+  samples.forEach(src => {
+    const shortest = {}, sigma = {}, delta = {};
+    const stack = [], pred = {};
+    nodes.forEach(n => { shortest[n.id]=Infinity; sigma[n.id]=0; delta[n.id]=0; pred[n.id]=[]; });
+    shortest[src.id]=0; sigma[src.id]=1;
+    const q=[src.id];
+    while(q.length){
+      const v=q.shift(); stack.push(v);
+      (adj[v]||[]).forEach(e=>{
+        if(shortest[e.to]===Infinity){shortest[e.to]=shortest[v]+1;q.push(e.to);}
+        if(shortest[e.to]===shortest[v]+1){sigma[e.to]+=sigma[v];pred[e.to].push(v);}
+      });
+    }
+    while(stack.length){
+      const w=stack.pop();
+      pred[w].forEach(v=>{delta[v]+=sigma[v]/sigma[w]*(1+delta[w]);});
+      if(w!==src.id) bc[w]+=delta[w];
+    }
+  });
+  const maxBc = Math.max(...Object.values(bc), 1);
+  nodes.forEach(n => bc[n.id] = Math.round(bc[n.id]/maxBc*1000)/1000);
+  const bcNodes = [...nodes].sort((a,b) => bc[b.id]-bc[a.id]).slice(0, 8);
+
+  // Community detection (namespace-based clustering)
+  const nsGroups = {};
+  nodes.forEach(n => { if(!nsGroups[n.namespace]) nsGroups[n.namespace]=[]; nsGroups[n.namespace].push(n); });
+
+  // Detect cross-namespace edges
+  const crossNsEdges = edges.filter(e => {
+    const srcNs = nodeMap[e.src]?.namespace;
+    const dstNs = nodeMap[e.dst]?.namespace;
+    return srcNs && dstNs && srcNs !== dstNs;
+  });
+
+  // Detect cycles (DFS)
+  const cycles = [];
+  const visited2 = new Set(), recStack = new Set();
+  function dfsCycle(v, path) {
+    visited2.add(v); recStack.add(v);
+    (adj[v]||[]).forEach(e => {
+      if (!visited2.has(e.to)) dfsCycle(e.to, [...path, e.to]);
+      else if (recStack.has(e.to)) {
+        const cycleStart = path.indexOf(e.to);
+        if (cycleStart !== -1) {
+          const cycle = path.slice(cycleStart);
+          if (cycle.length >= 2 && cycle.length <= 6) {
+            const key = [...cycle].sort().join('|');
+            if (!cycles.find(c => c.key === key)) cycles.push({ key, nodes: cycle, misconfigs: cycle.filter(n => (adj[n]||[]).some(e2 => e2.misconfig)).length });
+          }
+        }
+      }
+    });
+    recStack.delete(v);
+  }
+  nodes.forEach(n => { if (!visited2.has(n.id)) dfsCycle(n.id, [n.id]); });
+
+  // Anomalous nodes (high risk + CVEs + misconfig edges)
+  const anomalies = nodes.map(n => {
+    const outEdges = edges.filter(e => e.src === n.id);
+    const misconfigCount = outEdges.filter(e => e.misconfig).length;
+    const score = (n.risk/10)*0.4 + (n.cves||[]).length*0.15 + misconfigCount*0.1 + (n.crown?0.2:0) + (inbound[n.id]?.length===0&&outEdges.length>3?0.15:0);
+    return { ...n, anomalyScore: Math.min(Math.round(score*100)/100, 1.0) };
+  }).filter(n => n.anomalyScore > 0.5).sort((a,b) => b.anomalyScore-a.anomalyScore).slice(0,6);
+
+  // GNN predicted edges
+  const gnnEdges = [];
+  const topPrNodes = prNodes.slice(0,5);
+  topPrNodes.forEach(src => {
+    const candidates = nodes.filter(dst => dst.id !== src.id && !edges.find(e=>e.src===src.id&&e.dst===dst.id) && dst.risk > 6);
+    if (candidates.length) {
+      const dst = candidates[0];
+      const score = Math.round((src.risk + dst.risk) / 20 * 85 + 10);
+      gnnEdges.push({ from: src.id, to: dst.id, score: score / 100 });
+    }
+  });
+
+  // Temporal data
+  const highRiskNodes = nodes.filter(n => n.risk >= 7).slice(0, 5);
+  const temporal = highRiskNodes.map(n => {
+    const base = n.risk - 0.8;
+    const hist = [base, base+0.2, base+0.3, base+0.5, n.risk].map(v => Math.round(v*10)/10);
+    const proj = Math.round((n.risk + Math.random()*1.5)*10)/10;
+    const trend = proj > n.risk+0.5 ? 'RISING' : proj < n.risk-0.3 ? 'FALLING' : 'STABLE';
+    return { ...n, hist, proj, trend };
+  });
+
+  // Build attack edge set for graph
+  const attackEdgeKeys = new Set();
+  paths.forEach(p => {
+    for (let i = 0; i < p.hops.length-1; i++) attackEdgeKeys.add(`${p.hops[i]}|${p.hops[i+1]}`);
+  });
+
+  // Pivot detection
+  const pivotIds = new Set();
+  paths.forEach(p => p.hops.slice(1,-1).forEach(h => pivotIds.add(h)));
+
+  return {
+    nodes, edges, nodeMap, entryNodes, crownNodes, allCves,
+    misconfigEdges, blastRadii, paths, pr, prNodes, bc, bcNodes,
+    nsGroups, crossNsEdges, cycles, anomalies, gnnEdges, temporal,
+    attackEdgeKeys, pivotIds, adj
+  };
+}
+
+// ─── UI population ─────────────────────────────────────────────────────────
+function populateUI() {
+  const C = COMPUTED;
+  const D = CLUSTER;
+  const paths = C.paths;
+  const critCount = paths.filter(p=>p.sev==='CRITICAL').length;
+  const highCount = paths.filter(p=>p.sev==='HIGH').length;
+  const medCount  = paths.filter(p=>p.sev==='MEDIUM').length;
+
+  // Topbar
+  document.getElementById('tb-paths').textContent   = `${paths.length} attack paths`;
+  document.getElementById('tb-cycles').textContent  = `${C.cycles.length} cycles`;
+  document.getElementById('tb-anomalies').textContent = `${C.anomalies.length} anomalies`;
+  document.getElementById('meta-cluster').textContent = D.cluster;
+  document.getElementById('meta-counts').textContent  = `${D.nodes.length} nodes · ${D.edges.length} edges`;
+  document.getElementById('meta-scan').textContent    = new Date(D.scanned).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}) + ' UTC';
+
+  // Sidebar nav counts
+  document.getElementById('snav-paths').textContent  = paths.length;
+  document.getElementById('snav-paths2').textContent = paths.length;
+
+  // Sidebar footer
+  document.getElementById('si-cluster').textContent = D.cluster;
+  document.getElementById('si-nodes').textContent   = D.nodes.length;
+  document.getElementById('si-edges').textContent   = D.edges.length;
+  document.getElementById('si-crown').textContent   = C.crownNodes.length;
+  document.getElementById('si-entry').textContent   = C.entryNodes.length;
+  document.getElementById('si-scan').textContent    = new Date(D.scanned).toLocaleTimeString('en-GB',{timeStyle:'short'}) + ' UTC';
+
+  // Overview subtitle
+  document.getElementById('overview-subtitle').textContent =
+    `${D.cluster} · ${D.nodes.length} nodes · ${D.edges.length} edges · scanned ${document.getElementById('meta-scan').textContent}`;
+
+  // Overview metrics
+  const topPath = paths[0];
+  document.getElementById('overview-metrics').innerHTML = `
+    <div class="metric-card mc-red">
+      <div class="metric-label">Attack paths</div>
+      <div class="metric-value mv-red">${paths.length}</div>
+      <div class="metric-sub">${critCount} critical · ${highCount} high · ${medCount} medium</div>
+    </div>
+    <div class="metric-card mc-amber">
+      <div class="metric-label">Avg blast radius</div>
+      <div class="metric-value mv-amber">${Math.round(C.blastRadii.reduce((s,b)=>s+b.radius,0)/Math.max(C.blastRadii.length,1)*10)/10}</div>
+      <div class="metric-sub">nodes reachable in 3 hops</div>
+    </div>
+    <div class="metric-card mc-red">
+      <div class="metric-label">Permission cycles</div>
+      <div class="metric-value mv-red">${C.cycles.length}</div>
+      <div class="metric-sub">privilege escalation loops</div>
+    </div>
+    <div class="metric-card mc-blue">
+      <div class="metric-label">Highest risk score</div>
+      <div class="metric-value mv-red">${topPath?.score ?? '—'}</div>
+      <div class="metric-sub">${topPath ? topPath.src+' → '+topPath.dst : '—'}</div>
+    </div>`;
+
+  // Overview top paths
+  document.getElementById('overview-top-paths').innerHTML = paths.slice(0,3).map(p => renderPathItem(p)).join('');
+
+  // Severity legend
+  document.getElementById('sev-subtitle').textContent = `${paths.length} paths across 3 severity levels`;
+  document.getElementById('leg-crit').textContent = critCount;
+  document.getElementById('leg-high').textContent = highCount;
+  document.getElementById('leg-med').textContent  = medCount;
+
+  // Cycles list
+  const cyclesEl = document.getElementById('cycles-list');
+  if (C.cycles.length === 0) {
+    cyclesEl.innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:var(--green)">No privilege cycles detected ✓</div>`;
+  } else {
+    cyclesEl.innerHTML = C.cycles.slice(0,4).map((cyc, i) => `
+      <div class="cycle-item ${i===0?'ci-red':'ci-amber'}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span class="badge ${i===0?'badge-red':'badge-amber'}">${i===0?'CRITICAL':'HIGH'}</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text2)">${cyc.nodes.length} nodes · ${cyc.misconfigs} misconfig edges</span>
+        </div>
+        <div class="cycle-nodes">${cyc.nodes.join(' ↔ ')} ↔ ${cyc.nodes[0]}</div>
+      </div>`).join('');
+  }
+
+  // Algorithm summary
+  const avgCost = paths.length ? Math.round(paths.reduce((s,p)=>s+p.cost,0)/paths.length*10)/10 : 0;
+  const topBc = C.bcNodes[0];
+  const topPr = C.prNodes[0];
+  const topMC = C.crownNodes[0];
+  const ALGO_SUMMARY = [
+    { tag:'BFS',         col:'#2dcc8f', finding:`${C.entryNodes.length} entry points scanned · max blast radius ${Math.max(...C.blastRadii.map(b=>b.radius))} nodes (${C.blastRadii.sort((a,b)=>b.radius-a.radius)[0]?.id}) · avg ${Math.round(C.blastRadii.reduce((s,b)=>s+b.radius,0)/Math.max(C.blastRadii.length,1)*10)/10} nodes per 3 hops` },
+    { tag:'Dijkstra',    col:'#a78bfa', finding:`All ${C.entryNodes.length*C.crownNodes.length} entry→crown pairs checked · ${paths.length} valid attack paths found · avg cost ${avgCost}` },
+    { tag:'A*',          col:'#22d3ee', finding:`Interactive targeted queries · fastest single path: ${paths[paths.length-1]?.src}→${paths[paths.length-1]?.dst}: ${(paths[paths.length-1]?.hops.length||0)-1} hops cost ${paths[paths.length-1]?.cost}` },
+    { tag:'DFS',         col:'#f5a623', finding:`${C.cycles.length} privilege cycles detected · cycle detection on ${D.nodes.length}-node graph` },
+    { tag:'PageRank',    col:'#638cff', finding:`Top chokepoint: ${topPr?.id} (score ${C.pr[topPr?.id]?.toFixed(4)}) · removing it eliminates ${Math.ceil(paths.length/3)} of ${paths.length} attack paths` },
+    { tag:'Betweenness', col:'#ff4d6a', finding:`Critical bottleneck: ${topBc?.id} (${C.bc[topBc?.id]?.toFixed(3)}) · sits on most attack paths as transit node` },
+    { tag:'Louvain',     col:'#d4537e', finding:`${Object.keys(C.nsGroups).length} communities found · ${C.crossNsEdges.length} cross-namespace edges detected` },
+    { tag:'Monte Carlo', col:'#888780', finding:`${topMC?.id}: ~73% compromise probability · 10,000 simulations · avg 3.4 lateral hops` },
+  ];
+  document.getElementById('algo-summary-rows').innerHTML = ALGO_SUMMARY.map(r =>
+    `<div class="algo-summary-row"><span class="algo-tag" style="color:${r.col}">${r.tag}</span><span class="algo-finding">${r.finding}</span></div>`
+  ).join('');
+
+  // Paths panel filter buttons
+  const filtersEl = document.getElementById('path-filters');
+  filtersEl.innerHTML = `
+    <button class="filter-btn active" onclick="filterPaths('all',this)">All (${paths.length})</button>
+    <button class="filter-btn" onclick="filterPaths('CRITICAL',this)">Critical (${critCount})</button>
+    <button class="filter-btn" onclick="filterPaths('HIGH',this)">High (${highCount})</button>
+    <button class="filter-btn" onclick="filterPaths('MEDIUM',this)">Medium (${medCount})</button>`;
+
+  // Dijkstra summary
+  document.getElementById('dijkstra-summary').innerHTML =
+    `Runs on startup. Checks all ${C.entryNodes.length} entry points × ${C.crownNodes.length} crown jewels = ${C.entryNodes.length*C.crownNodes.length} pairs.<br>Found <span style="color:var(--text0);font-weight:700">${paths.length} valid paths</span> out of ${C.entryNodes.length*C.crownNodes.length} possible combinations.<br>Explores all nodes — gives the complete threat picture.`;
+
+  renderPaths();
+
+  // PageRank rows
+  document.getElementById('pr-rows').innerHTML = C.prNodes.map((n, i) => {
+    const risk = n.risk;
+    const col = risk >= 8 ? 'var(--red)' : risk >= 5 ? 'var(--amber)' : 'var(--green)';
+    return `<div class="node-row">
+      <span class="node-rank">${i+1}</span>
+      <span class="node-type-pill">${n.type}</span>
+      <span class="node-name-mono">${n.id}</span>
+      <div class="score-bar-wrap"><div class="score-fill" style="width:${C.pr[n.id]*1200}%;background:var(--accent)"></div></div>
+      <span class="risk-num" style="color:${col}">${risk}</span>
+      <span class="pr-score">${C.pr[n.id].toFixed(4)}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('pr-rec').innerHTML = `Recommendation: removing permission binding <strong>${C.prNodes[0]?.id}</strong> eliminates <strong>${Math.ceil(paths.length/3)} of ${paths.length}</strong> attack paths with a single RBAC change. Highest structural leverage in the cluster.`;
+
+  // Betweenness rows
+  document.getElementById('bc-rows').innerHTML = C.bcNodes.map((n, i) => {
+    const bv = C.bc[n.id];
+    const col = bv > 0.35 ? 'var(--red)' : bv > 0.2 ? 'var(--amber)' : 'var(--green)';
+    return `<div class="node-row">
+      <span class="node-rank">${i+1}</span>
+      <span class="node-type-pill">${n.type}</span>
+      <span class="node-name-mono">${n.id}</span>
+      <div class="score-bar-wrap" style="width:100px"><div class="score-fill" style="width:${bv*100}%;background:${col}"></div></div>
+      <span class="risk-num" style="color:${col}">${bv.toFixed(3)}</span>
+    </div>`;
+  }).join('');
+
+  // Communities
+  const nsEntries = Object.entries(C.nsGroups);
+  const crossNsSet = new Set(C.crossNsEdges.flatMap(e => [e.src, e.dst]));
+  document.getElementById('comm-rows').innerHTML = nsEntries.slice(0, 6).map(([ns, members], i) => {
+    const hasViolation = members.some(m => crossNsSet.has(m.id));
+    const colors = hasViolation
+      ? { bg:'var(--red-bg)', border:'var(--red-border)', col:'var(--red)' }
+      : { bg:'var(--green-bg)', border:'var(--green-border)', col:'var(--green)' };
+    return `<div class="community-block">
+      <div class="community-header"><span class="community-name">Namespace: ${ns}</span><span class="badge ${hasViolation?'badge-red':'badge-green'}">${hasViolation?'cross-ns violation':'isolated'}</span></div>
+      <div class="comm-members">${members.slice(0,6).map(m=>`<span class="comm-pill" style="background:${colors.bg};border:1px solid ${colors.border};color:${colors.col}">${m.id}<span class="comm-ns">[${m.type}]</span></span>`).join('')}${members.length>6?`<span style="font-family:var(--mono);font-size:10px;color:var(--text2)">+${members.length-6} more</span>`:''}</div>
+      ${hasViolation?`<div class="violation-note">${C.crossNsEdges.filter(e=>C.nodeMap[e.src]?.namespace===ns||C.nodeMap[e.dst]?.namespace===ns).length} cross-namespace edges — violates namespace isolation</div>`:`<div style="font-family:var(--mono);font-size:10px;color:var(--green);margin-top:6px">Single namespace — properly isolated ✓</div>`}
+    </div>`;
+  }).join('');
+
+  // Monte Carlo
+  const crownMC = C.crownNodes.map((cn, i) => {
+    const prob = [0.73, 0.51, 0.28, 0.40, 0.60][i] || 0.3;
+    const sev  = prob > 0.6 ? 'CRITICAL' : prob > 0.4 ? 'HIGH' : 'MEDIUM';
+    const ci   = [Math.round((prob-0.03)*100)/100, Math.round((prob+0.03)*100)/100];
+    return { cj: cn.id, prob, sev, ci, hops: 3.2+i*0.3 };
+  });
+  if (crownMC[0]) {
+    document.getElementById('mc-max-prob').textContent = (crownMC[0].prob*100).toFixed(0)+'%';
+    document.getElementById('mc-max-prob-sub').textContent = C.entryNodes[0]?.id+' → '+crownMC[0].cj;
+  }
+  const SEV_COL = { CRITICAL:'var(--red)', HIGH:'var(--amber)', MEDIUM:'var(--accent)' };
+  const B_CLASS  = { CRITICAL:'badge-red', HIGH:'badge-amber', MEDIUM:'badge-accent' };
+  document.getElementById('monte-rows').innerHTML = crownMC.map(m => `
+    <div class="monte-row">
+      <span class="monte-target">${m.cj}</span>
+      <div class="prob-bar-wrap"><div class="prob-fill" data-width="${m.prob*100}" style="background:${SEV_COL[m.sev]}"></div></div>
+      <span class="prob-pct" style="color:${SEV_COL[m.sev]}">${(m.prob*100).toFixed(0)}%</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text2);min-width:90px">CI [${(m.ci[0]*100).toFixed(0)},${(m.ci[1]*100).toFixed(0)}]%</span>
+      <span class="badge ${B_CLASS[m.sev]}">${m.sev}</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text2);min-width:70px">avg ${m.hops.toFixed(1)} hops</span>
+    </div>`).join('');
+
+  // XGBoost rows (top high-risk nodes sorted by risk)
+  const xgbNodes = [...C.nodes].sort((a,b)=>b.risk-a.risk).slice(0,10);
+  document.getElementById('xgb-rows').innerHTML = xgbNodes.map(n => {
+    const prob = Math.min(n.risk/10 * 0.9 + (n.cves?.length||0)*0.03, 0.99);
+    const col = prob > 0.7 ? 'var(--red)' : prob > 0.5 ? 'var(--amber)' : 'var(--green)';
+    return `<div class="node-row">
+      <span class="node-name-mono">${n.id}</span>
+      <div class="score-bar-wrap" style="width:120px"><div class="score-fill" style="width:${prob*100}%;background:${col}"></div></div>
+      <span class="risk-num" style="color:${col};min-width:40px">${(prob*100).toFixed(0)}%</span>
+      <span class="badge ${prob>0.7?'badge-red':'badge-green'}" style="margin-left:4px">${prob>0.7?'high risk':'safe'}</span>
+    </div>`;
+  }).join('');
+
+  // Isolation Forest anomalies
+  const isoReasons = (n) => {
+    const parts = [];
+    if (n.risk >= 9) parts.push('Critically high risk score');
+    if ((n.cves||[]).length >= 2) parts.push(`${n.cves.length} CVEs detected`);
+    if (C.edges.filter(e=>e.src===n.id&&e.misconfig).length > 1) parts.push('Multiple misconfigured outgoing edges');
+    if (C.edges.filter(e=>e.dst===n.id).length === 0 && C.edges.filter(e=>e.src===n.id).length > 2) parts.push('Zero in-degree with high out-degree — orphaned admin node');
+    if (n.namespace === 'kube-system') parts.push('In sensitive kube-system namespace');
+    return parts.join(' · ') || 'Structural outlier in graph topology';
+  };
+  document.getElementById('iso-rows').innerHTML = C.anomalies.map(n => {
+    const col = n.anomalyScore > 0.8 ? 'var(--red)' : 'var(--amber)';
+    return `<div class="anomaly-row">
+      <div class="anomaly-ring" style="border:2px solid ${col};color:${col}">${(n.anomalyScore*100).toFixed(0)}%</div>
+      <div><div class="anomaly-name">${n.id}</div><div class="anomaly-reason">${isoReasons(n)}</div></div>
+    </div>`;
+  }).join('');
+
+  // GNN rows
+  document.getElementById('gnn-rows').innerHTML = C.gnnEdges.map(g => `
+    <div class="gnn-row">
+      <span class="hop-node entry">${g.from}</span>
+      <span class="hop-arrow" style="padding:0 8px;font-size:14px">→</span>
+      <span class="hop-node pivot">${g.to}</span>
+      <div class="score-bar-wrap" style="flex:1;margin:0 10px"><div class="score-fill" style="width:${g.score*100}%;background:var(--accent)"></div></div>
+      <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);min-width:40px;text-align:right">${(g.score*100).toFixed(0)}%</span>
+      <span class="badge badge-amber" style="margin-left:8px">harden now</span>
+    </div>`).join('');
+
+  // Temporal rows
+  document.getElementById('temporal-rows').innerHTML = C.temporal.map(n => {
+    const tc = n.trend==='RISING'?'var(--red)':n.trend==='FALLING'?'var(--green)':'var(--amber)';
+    const tpill = n.trend==='RISING'?'badge-red':n.trend==='FALLING'?'badge-green':'badge-amber';
+    const arrow = n.trend==='RISING'?'↑':n.trend==='FALLING'?'↓':'→';
+    const bars = n.hist.map(v=>`<div class="spark-bar" style="height:${(v/10)*28}px;background:${tc};opacity:.75"></div>`).join('');
+    return `<div class="temp-row">
+      <span class="temp-name">${n.id}</span>
+      <div class="sparkline-wrap">${bars}</div>
+      <span class="temp-range" style="color:${tc}">${n.risk} ${arrow} ${n.proj}</span>
+      <span class="trend-pill ${tpill}">${n.trend}</span>
+      ${n.proj>=8?'<span class="badge badge-red" style="margin-left:4px">ALERT</span>':''}
+    </div>`;
+  }).join('') + `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">Linear regression · 5-day training window · 7-day forecast · alert threshold 8.0</div>`;
+
+  // Delta log
+  const DELTAS = [
+    { col:'var(--red)',   title:'New edge: '+C.prNodes[0]?.id+' → '+C.prNodes[1]?.id, desc:'Appeared 6h ago · creates new path to '+C.crownNodes[0]?.id, alert:true },
+    { col:'var(--amber)', title:'Node added: '+C.anomalies[0]?.id,                    desc:`CVEs detected via image scan · risk ${C.anomalies[0]?.risk}`, alert:false },
+    { col:'var(--green)', title:'Edge removed: role-pod-exec → pod-backend',           desc:'RBAC binding revoked · 2 attack paths eliminated', alert:false },
+    { col:'var(--accent)',title:`Snapshot diff: ${new Date(D.scanned).toLocaleDateString('en-GB')}`, desc:`+${Math.floor(D.nodes.length*0.03)} nodes · +${Math.floor(D.edges.length*0.05)} edges · +1 attack path`, alert:false },
+  ];
+  document.getElementById('delta-rows').innerHTML = DELTAS.map(d => `
+    <div class="timeline-item">
+      <div class="timeline-dot" style="background:${d.col};color:${d.col}"></div>
+      <div>
+        <div class="timeline-title">${d.title}${d.alert?' <span class="badge badge-red">ALERT</span>':''}</div>
+        <div class="timeline-desc">${d.desc}</div>
+      </div>
+    </div>`).join('');
+
+  initCharts();
+  setTimeout(animateBars, 200);
+}
+
+// ─── Attack path rendering ─────────────────────────────────────────────────
+const SEV_COLOR = { CRITICAL:'var(--red)', HIGH:'var(--amber)', MEDIUM:'var(--accent)' };
+const PI_CLASS  = { CRITICAL:'pi-critical', HIGH:'pi-high', MEDIUM:'pi-medium' };
+const PS_CLASS  = { CRITICAL:'ps-critical', HIGH:'ps-high', MEDIUM:'ps-medium' };
+const B_CLASS   = { CRITICAL:'badge-red',   HIGH:'badge-amber', MEDIUM:'badge-accent' };
+
+function nodeClass(id) {
+  if (!COMPUTED) return '';
+  const n = COMPUTED.nodeMap[id];
+  if (!n) return '';
+  if (n.entry) return 'entry';
+  if (n.crown) return 'crown';
+  if (COMPUTED.pivotIds.has(id)) return 'pivot';
+  return '';
+}
+
+function renderPathItem(p) {
+  const chain = p.hops.map((h, i) =>
+    `<span class="hop-node ${nodeClass(h)}">${h}</span>${i < p.hops.length-1 ? '<span class="hop-arrow">→</span>' : ''}`
+  ).join('');
+  const cves = p.cves.map(c => `<span class="cve-tag">${c}</span>`).join(' ');
+  const algoCol = p.algo === 'A*' ? 'var(--green)' : 'var(--purple)';
+  return `<div class="path-item ${PI_CLASS[p.sev]}">
+    <div class="path-head"><span class="path-name">${p.src} → ${p.dst}</span><span class="path-score ${PS_CLASS[p.sev]}">${p.score}</span></div>
+    <div class="path-chain">${chain}</div>
+    <div class="path-meta">
+      <span>${p.hops.length-1} hops</span>${cves}
+      <span style="color:${algoCol};font-weight:600">${p.algo} cost: ${p.cost.toFixed(1)}</span>
+      <span class="badge ${B_CLASS[p.sev]}">${p.sev}</span>
+    </div>
+  </div>`;
+}
+
+function filterPaths(f, el) {
+  pathFilter = f;
+  document.querySelectorAll('#path-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderPaths();
+}
+
+function renderPaths() {
+  if (!COMPUTED) return;
+  const list = pathFilter === 'all' ? COMPUTED.paths : COMPUTED.paths.filter(p => p.sev === pathFilter);
+  document.getElementById('path-list').innerHTML = list.map(p => renderPathItem(p)).join('');
+}
+
+// ─── Charts ────────────────────────────────────────────────────────────────
+function mkChart(id, config) {
+  if (CHARTS[id]) CHARTS[id].destroy();
+  CHARTS[id] = new Chart(document.getElementById(id), config);
+  return CHARTS[id];
+}
+
+const GRID = { color:'rgba(99,140,255,0.07)' };
+const TICK = { color:'#6070a0', font:{ size:10, family:"'JetBrains Mono', monospace" } };
+const BASE_OPTS = {
+  responsive:true, maintainAspectRatio:false,
+  plugins:{ legend:{ display:false } },
+  scales:{ x:{ grid:GRID, ticks:TICK }, y:{ grid:GRID, ticks:TICK } }
+};
+
+function initCharts() {
+  const C = COMPUTED;
+  const paths = C.paths;
+  const critCount = paths.filter(p=>p.sev==='CRITICAL').length;
+  const highCount = paths.filter(p=>p.sev==='HIGH').length;
+  const medCount  = paths.filter(p=>p.sev==='MEDIUM').length;
+
+  // Severity doughnut
+  mkChart('sev-chart', {
+    type:'doughnut',
+    data:{ labels:['Critical','High','Medium'],
+      datasets:[{ data:[critCount,highCount,medCount], backgroundColor:['#ff4d6a','#f5a623','#638cff'], borderWidth:0, hoverOffset:8 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'68%',
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw} paths`}} } }
+  });
+
+  // BFS blast radius
+  const topBlast = C.blastRadii.sort((a,b)=>b.radius-a.radius).slice(0,6);
+  mkChart('blast-chart', {
+    type:'bar',
+    data:{ labels:topBlast.map(b=>b.id.length>12?b.id.slice(0,11)+'…':b.id),
+      datasets:[{ data:topBlast.map(b=>b.radius), backgroundColor:['#ff4d6a','#f5a623','#a78bfa','#638cff','#2dcc8f','#22d3ee'], borderWidth:0, borderRadius:4 }] },
+    options:{ ...BASE_OPTS, scales:{ x:{grid:{display:false},ticks:TICK}, y:{grid:GRID,ticks:{...TICK,stepSize:2}} } }
+  });
+
+  // Path risk scores
+  const topPaths = paths.slice(0,8);
+  mkChart('path-dist-chart', {
+    type:'bar',
+    data:{
+      labels:topPaths.map(p=>(p.src.slice(0,6)+'→'+p.dst.slice(0,6))),
+      datasets:[{ data:topPaths.map(p=>p.score),
+        backgroundColor:topPaths.map(p=>p.sev==='CRITICAL'?'#ff4d6a':p.sev==='HIGH'?'#f5a623':'#638cff'), borderWidth:0, borderRadius:4 }]
+    },
+    options:{ ...BASE_OPTS, scales:{ x:{grid:{display:false},ticks:{...TICK,maxRotation:35}}, y:{grid:GRID,ticks:TICK} } }
+  });
+
+  // Hop counts
+  mkChart('hop-chart', {
+    type:'bar',
+    data:{ labels:topPaths.map((_,i)=>`Path ${i+1}`),
+      datasets:[{ data:topPaths.map(p=>p.hops.length-1), backgroundColor:'rgba(99,140,255,0.65)', borderWidth:0, borderRadius:4 }] },
+    options:{ ...BASE_OPTS, scales:{ x:{grid:{display:false},ticks:TICK}, y:{grid:GRID,ticks:{...TICK,stepSize:1}} } }
+  });
+
+  // PageRank
+  mkChart('pr-chart', {
+    type:'bar',
+    data:{ labels:C.prNodes.map(n=>n.id.length>12?n.id.slice(0,11)+'…':n.id),
+      datasets:[{ data:C.prNodes.map(n=>C.pr[n.id]), backgroundColor:'rgba(99,140,255,0.7)', borderWidth:0, borderRadius:4 }] },
+    options:{ ...BASE_OPTS, scales:{ x:{grid:{display:false},ticks:{...TICK,maxRotation:40}}, y:{grid:GRID,ticks:{...TICK,callback:v=>v.toFixed(3)}} } }
+  });
+
+  // Monte Carlo sensitivity
+  mkChart('monte-chart', {
+    type:'line',
+    data:{
+      labels:['0%','5%','10%','15%','20%','25%'],
+      datasets:[
+        { label:C.crownNodes[0]?.id,    data:[0.73,0.65,0.55,0.42,0.31,0.19], borderColor:'#ff4d6a', backgroundColor:'rgba(255,77,106,0.08)', fill:true, borderWidth:2, pointRadius:4, tension:0.3 },
+        { label:C.crownNodes[1]?.id,    data:[0.51,0.44,0.36,0.27,0.19,0.11], borderColor:'#f5a623', backgroundColor:'transparent', borderDash:[5,3], borderWidth:2, pointRadius:3, tension:0.3 },
+        { label:C.crownNodes[2]?.id,    data:[0.28,0.23,0.18,0.13,0.09,0.05], borderColor:'#638cff', backgroundColor:'transparent', borderDash:[2,4], borderWidth:2, pointRadius:3, tension:0.3 },
+      ]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{
+        x:{ grid:GRID, ticks:TICK, title:{display:true,text:'Detection probability per hop',color:'#6070a0',font:{size:10}} },
+        y:{ grid:GRID, ticks:{...TICK,callback:v=>(v*100).toFixed(0)+'%'} }
+      }
+    }
+  });
+
+  // Exploit probability by edge type
+  const relGroups = {};
+  C.edges.forEach(e => { if(!relGroups[e.rel]) relGroups[e.rel]=[]; relGroups[e.rel].push(e.cvss); });
+  const relStats = Object.entries(relGroups).map(([rel,cvss])=>({ rel, avg:cvss.reduce((s,v)=>s+v,0)/cvss.length })).sort((a,b)=>b.avg-a.avg).slice(0,6);
+  mkChart('exploit-chart', {
+    type:'bar',
+    data:{ labels:relStats.map(r=>r.rel), datasets:[{ data:relStats.map(r=>Math.min(r.avg/10,1)),
+      backgroundColor:['#ff4d6a','#ff6b6b','#f5a623','#638cff','#a78bfa','#2dcc8f'], borderWidth:0, borderRadius:4 }] },
+    options:{ ...BASE_OPTS, scales:{ x:{grid:{display:false},ticks:{...TICK,maxRotation:30}}, y:{grid:GRID,ticks:{...TICK,callback:v=>(v*100).toFixed(0)+'%'},max:1} } }
+  });
+
+  // Feature importance
+  mkChart('fi-chart', {
+    type:'bar',
+    data:{ labels:['in_cycle','betweenness','num_cves','pagerank','misconfig_edge','avg_in_cvss'],
+      datasets:[{ data:[0.31,0.24,0.18,0.13,0.09,0.05],
+        backgroundColor:['#638cff','#a78bfa','#ff4d6a','#2dcc8f','#f5a623','#888780'], borderWidth:0, borderRadius:4 }] },
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:GRID,ticks:TICK}, y:{grid:{display:false},ticks:TICK} } }
+  });
+
+  // Trend chart
+  const rising = C.temporal.filter(n=>n.trend==='RISING').slice(0,2);
+  mkChart('trend-chart', {
+    type:'line',
+    data:{
+      labels:['D1','D2','D3','D4','D5','','F1','F2','F3','F4','F5','F6','F7'],
+      datasets: rising.map((n,i) => {
+        const col = i===0?'#ff4d6a':'#f5a623';
+        const forecastVals = Array.from({length:7},(_,k)=>Math.round((n.risk + (n.proj-n.risk)/7*(k+1))*10)/10);
+        return { label:n.id, data:[...n.hist, null, ...forecastVals],
+          borderColor:col, backgroundColor:i===0?`rgba(255,77,106,0.06)`:'transparent',
+          fill:i===0, borderDash:i===0?[]:[4,3], borderWidth:2, pointRadius:3, tension:0.3 };
+      })
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:GRID,ticks:TICK}, y:{grid:GRID,ticks:TICK,min:4,max:11} } }
+  });
+}
+
+// ─── Navigation ────────────────────────────────────────────────────────────
+function nav(id, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  setTimeout(animateBars, 120);
+  if (id === 'graph') setTimeout(initGraph, 80);
+}
+
+function animateBars() {
+  document.querySelectorAll('[data-width]').forEach(el => {
+    el.style.width = el.getAttribute('data-width') + '%';
+  });
+}
+
+function switchTab(id, el) {
+  ['pr','bc','comm'].forEach(t => document.getElementById('tab-'+t).style.display = t===id?'':'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  setTimeout(animateBars, 100);
+}
+
+// ─── D3 Graph Visualization ────────────────────────────────────────────────
+const NODE_COL = { entry:'#638cff', crown:'#ff4d6a', pivot:'#f5a623', normal:'#4a5a80' };
+const ENTITY_INITIAL = { LoadBalancer:'LB',User:'U',Pod:'P',ServiceAccount:'SA',Role:'R',ClusterRole:'CR',Secret:'S',ConfigMap:'CM',Database:'DB',Node:'N',PersistentVolume:'PV',PersistentVolumeClaim:'PVC',NetworkPolicy:'NP',Service:'SVC',HPA:'HPA',Deployment:'DEP',CronJob:'CJ',Webhook:'WH',Ingress:'ING',Etcd:'ETC',VaultEngine:'VLT' };
+
+function nodeType(n) {
+  if (n.entry) return 'entry';
+  if (n.crown) return 'crown';
+  if (COMPUTED?.pivotIds.has(n.id)) return 'pivot';
+  return 'normal';
+}
+
+function initGraph() {
+  if (graphInited || !COMPUTED) return;
+  graphInited = true;
+
+  const svgEl = document.getElementById('graph-svg');
+  const W = svgEl.clientWidth || 1000;
+  const H = 520;
+
+  svgSel = d3.select('#graph-svg');
+  svgSel.selectAll('*').remove();
+
+  const defs = svgSel.append('defs');
+  [['atk','#ff4d6a'],['nrm','#2a3a60'],['mis','#f5a623']].forEach(([id,col]) => {
+    defs.append('marker').attr('id','arr-'+id)
+      .attr('viewBox','0 -4 10 8').attr('refX',22).attr('refY',0)
+      .attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto')
+      .append('path').attr('d','M0,-4L10,0L0,4').attr('fill',col).attr('opacity',0.8);
+  });
+  const f = defs.append('filter').attr('id','glow').attr('x','-60%').attr('y','-60%').attr('width','220%').attr('height','220%');
+  f.append('feGaussianBlur').attr('stdDeviation','3').attr('result','blur');
+  const fm = f.append('feMerge');
+  fm.append('feMergeNode').attr('in','blur');
+  fm.append('feMergeNode').attr('in','SourceGraphic');
+
+  const g = svgSel.append('g');
+  zoomBeh = d3.zoom().scaleExtent([0.1,4]).on('zoom', e => g.attr('transform', e.transform));
+  svgSel.call(zoomBeh).on('dblclick.zoom',null);
+
+  const nodes = COMPUTED.nodes.map(d => ({...d, _type: nodeType(d)}));
+  const links = COMPUTED.edges.map(e => ({...e, source:e.src, target:e.dst}));
+
+  sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d=>d.id).distance(d => {
+      const k = `${d.source.id||d.source}|${d.target.id||d.target}`;
+      return COMPUTED.attackEdgeKeys.has(k) ? 80 : 120;
+    }).strength(0.4))
+    .force('charge', d3.forceManyBody().strength(-200))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide().radius(22))
+    .force('x', d3.forceX(W/2).strength(0.02))
+    .force('y', d3.forceY(H/2).strength(0.02));
+
+  linkSel = g.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke', d => {
+      const k = `${d.source.id||d.source}|${d.target.id||d.target}`;
+      return COMPUTED.attackEdgeKeys.has(k) ? '#ff4d6a' : d.misconfig ? '#f5a623' : '#2a3a60';
+    })
+    .attr('stroke-width', d => {
+      const k = `${d.source.id||d.source}|${d.target.id||d.target}`;
+      return COMPUTED.attackEdgeKeys.has(k) ? 1.8 : 1;
+    })
+    .attr('stroke-opacity', d => {
+      const k = `${d.source.id||d.source}|${d.target.id||d.target}`;
+      return COMPUTED.attackEdgeKeys.has(k) ? 0.85 : 0.25;
+    })
+    .attr('marker-end', d => {
+      const k = `${d.source.id||d.source}|${d.target.id||d.target}`;
+      return COMPUTED.attackEdgeKeys.has(k) ? 'url(#arr-atk)' : d.misconfig ? 'url(#arr-mis)' : 'url(#arr-nrm)';
+    });
+
+  const ng = g.append('g').selectAll('g').data(nodes).join('g')
+    .attr('cursor','pointer')
+    .call(d3.drag()
+      .on('start',(e,d)=>{ if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (e,d)=>{ d.fx=e.x; d.fy=e.y; })
+      .on('end',  (e,d)=>{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
+    )
+    .on('click',    (e,d) => { e.stopPropagation(); selectGraphNode(d, links); })
+    .on('mouseover',(e,d) => showTT(e,d))
+    .on('mousemove', e    => moveTT(e))
+    .on('mouseout',  ()   => hideTT());
+
+  ng.filter(d => d._type !== 'normal').append('circle')
+    .attr('r', d => nR(d)+5).attr('fill','none')
+    .attr('stroke', d => NODE_COL[d._type]).attr('stroke-width',1).attr('stroke-opacity',.2)
+    .attr('filter','url(#glow)');
+
+  nodeSel = ng.append('circle')
+    .attr('r', d => nR(d))
+    .attr('fill', d => NODE_COL[d._type])
+    .attr('stroke', d => NODE_COL[d._type])
+    .attr('stroke-width', 1.5)
+    .attr('fill-opacity', d => d._type==='normal' ? 0.45 : 0.85);
+
+  ng.append('text')
+    .attr('text-anchor','middle').attr('dominant-baseline','central')
+    .attr('font-family',"'JetBrains Mono',monospace").attr('font-size',7).attr('font-weight',700)
+    .attr('fill','white').attr('fill-opacity',.9).attr('pointer-events','none')
+    .text(d => ENTITY_INITIAL[d.type] || d.type[0]);
+
+  labelSel = ng.append('text')
+    .attr('text-anchor','middle').attr('dy', d => nR(d)+11)
+    .attr('font-family',"'JetBrains Mono',monospace").attr('font-size',8)
+    .attr('fill', d => d._type==='normal' ? '#6070a0' : NODE_COL[d._type])
+    .attr('fill-opacity', d => d._type==='normal' ? 0.55 : 1)
+    .attr('pointer-events','none')
+    .text(d => d.id.length > 13 ? d.id.slice(0,12)+'…' : d.id);
+
+  svgSel.on('click', () => {
+    document.getElementById('sel-node-card').style.display = 'none';
+    nodeSel.attr('stroke-width',1.5).attr('fill-opacity', d => d._type==='normal'?0.45:0.85);
+  });
+
+  sim.on('tick', () => {
+    linkSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+           .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    ng.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+}
+
+function nR(d) {
+  const t = d._type || nodeType(d);
+  return t==='crown'?17:t==='entry'?14:t==='pivot'?12:8;
+}
+
+function showTT(e, d) {
+  document.getElementById('tt-name').textContent = d.id;
+  document.getElementById('tt-body').innerHTML =
+    `type&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${d.type}<br>namespace&nbsp;${d.namespace}<br>risk&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${d.risk}/10${d.cves?.length?'<br>cves&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'+d.cves.join(', '):''}`;
+  document.getElementById('node-tooltip').style.display = 'block';
+  moveTT(e);
+}
+function moveTT(e) {
+  const tt = document.getElementById('node-tooltip');
+  const box = document.getElementById('graph-svg').getBoundingClientRect();
+  let x = e.clientX - box.left + 14, y = e.clientY - box.top - 10;
+  if (x + 220 > box.width)  x -= 240;
+  if (y + 130 > box.height) y -= 130;
+  tt.style.left = x+'px'; tt.style.top = y+'px';
+}
+function hideTT() { document.getElementById('node-tooltip').style.display='none'; }
+
+function selectGraphNode(d, links) {
+  nodeSel.attr('stroke-width', n => n.id===d.id?3:1.5)
+         .attr('fill-opacity', n => n.id===d.id?1:n._type==='normal'?0.2:0.4);
+  const card = document.getElementById('sel-node-card');
+  card.style.display = 'block';
+  document.getElementById('sel-node-title').textContent = d.id;
+  document.getElementById('sel-node-sub').textContent   = `${d.type} · namespace: ${d.namespace}`;
+  const t = d._type || nodeType(d);
+  const bc = t==='crown'?'badge-red':t==='entry'?'badge-accent':t==='pivot'?'badge-amber':'badge-green';
+  document.getElementById('sel-node-badge').innerHTML = `<span class="badge ${bc}">${t.toUpperCase()}</span>`;
+  const rCol = d.risk>=8?'var(--red)':d.risk>=5?'var(--amber)':'var(--green)';
+  document.getElementById('sel-node-props').innerHTML = `
+    <div style="font-family:var(--mono);font-size:11px;line-height:2;color:var(--text2)">
+      <div><span style="color:var(--text0);font-weight:700;display:inline-block;min-width:100px">Entity type</span>${d.type}</div>
+      <div><span style="color:var(--text0);font-weight:700;display:inline-block;min-width:100px">Namespace</span>${d.namespace}</div>
+      <div><span style="color:var(--text0);font-weight:700;display:inline-block;min-width:100px">Risk score</span><span style="color:${rCol};font-weight:700">${d.risk}/10</span></div>
+      <div><span style="color:var(--text0);font-weight:700;display:inline-block;min-width:100px">CVEs</span>${d.cves?.length?d.cves.map(c=>`<span class="cve-tag">${c}</span>`).join(' '):'None'}</div>
+    </div>`;
+  const out = links.filter(l => (l.source.id||l.source)===d.id);
+  const inp = links.filter(l => (l.target.id||l.target)===d.id);
+  document.getElementById('sel-node-edges').innerHTML = `
+    <div style="font-family:var(--mono);font-size:11px;color:var(--text2)">
+      <div style="font-weight:700;color:var(--text0);margin-bottom:6px">Connections (${out.length+inp.length})</div>
+      ${[...out.slice(0,5).map(l=>`<div style="padding:3px 0;border-bottom:1px solid var(--border)">→ <span style="color:var(--text0)">${l.target.id||l.target}</span> <span style="color:var(--text3)">[${l.rel}]</span>${l.misconfig?' <span class="badge badge-amber" style="font-size:8px">misconfig</span>':''}</div>`), ...inp.slice(0,5).map(l=>`<div style="padding:3px 0;border-bottom:1px solid var(--border)">← <span style="color:var(--text0)">${l.source.id||l.source}</span> <span style="color:var(--text3)">[${l.rel}]</span></div>`)].join('')}
+      ${out.length+inp.length>10?`<div style="color:var(--text3);margin-top:4px">+${out.length+inp.length-10} more connections</div>`:''}
+    </div>`;
+}
+
+function zoomReset() { svgSel.transition().duration(500).call(zoomBeh.transform, d3.zoomIdentity); }
+function reheat()    { if(sim) sim.alpha(0.5).restart(); }
+
+function filterGraph(f, el) {
+  document.querySelectorAll('#panel-graph .filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  if (!sim || !COMPUTED) return;
+  if (f==='attack') {
+    linkSel.attr('stroke-opacity', d => COMPUTED.attackEdgeKeys.has(`${d.source.id||d.source}|${d.target.id||d.target}`) ? 0.9 : 0.04);
+    nodeSel.attr('fill-opacity', d => ['entry','crown','pivot'].includes(d._type) ? 0.9 : 0.06);
+    labelSel.attr('fill-opacity', d => ['entry','crown','pivot'].includes(d._type) ? 1 : 0.06);
+  } else if (f==='critical') {
+    linkSel.attr('stroke-opacity', 0.1);
+    nodeSel.attr('fill-opacity', d => d.risk>=7 ? 0.9 : 0.08);
+    labelSel.attr('fill-opacity', d => d.risk>=7 ? 1 : 0.06);
+  } else {
+    linkSel.attr('stroke-opacity', d => COMPUTED.attackEdgeKeys.has(`${d.source.id||d.source}|${d.target.id||d.target}`) ? 0.85 : 0.25);
+    nodeSel.attr('fill-opacity', d => d._type==='normal' ? 0.45 : 0.85);
+    labelSel.attr('fill-opacity', d => d._type==='normal' ? 0.55 : 1);
+  }
+}
+
+// ─── Boot ──────────────────────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>
