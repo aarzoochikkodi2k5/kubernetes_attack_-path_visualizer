@@ -89,7 +89,6 @@ def main():
     print("[*] Running temporal risk forecasting...")
     # Simulate 5 days of historical data with slight upward trends
     import random
-    random.seed(42)
     risk_history = {}
     for node in G.nodes():
         base = G.nodes[node].get("risk_score", G.nodes[node].get("risk", 3.0))

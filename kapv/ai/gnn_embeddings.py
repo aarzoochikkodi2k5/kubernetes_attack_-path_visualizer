@@ -32,7 +32,7 @@ Downstream tasks:
 
 import numpy as np
 import networkx as nx
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 def manual_graphsage(
     G: nx.DiGraph,
@@ -40,7 +40,7 @@ def manual_graphsage(
     node_ids: List[str],
     num_layers: int = 2,
     embedding_dim: int = 16,
-    seed: int = 42,
+    seed: Optional[int] = None,
 ) -> Dict[str, np.ndarray]:
     """
     Pure NumPy implementation of GraphSAGE mean aggregator.

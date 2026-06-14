@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <title>KAPV — Kubernetes Attack Path Visualizer</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
@@ -10,22 +12,46 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg0:#070b12; --bg1:#0d1420; --bg2:#111a2d; --bg3:#162038;
-  --surface:#1a2540; --surface2:#1f2d4a;
-  --border:rgba(99,140,255,0.12); --border2:rgba(99,140,255,0.22);
-  --accent:#638cff; --accent-glow:rgba(99,140,255,0.18);
-  --red:#ff4d6a; --red-bg:rgba(255,77,106,0.10); --red-border:rgba(255,77,106,0.28);
-  --amber:#f5a623; --amber-bg:rgba(245,166,35,0.10); --amber-border:rgba(245,166,35,0.28);
-  --green:#2dcc8f; --green-bg:rgba(45,204,143,0.10); --green-border:rgba(45,204,143,0.28);
-  --purple:#a78bfa; --purple-bg:rgba(167,139,250,0.10);
+  color-scheme: light;
+  forced-color-adjust: none;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  color-adjust: exact;
+  --bg0:#ffffff; --bg1:#f3f5f9; --bg2:#ffffff; --bg3:#f8fafc;
+  --surface:#ffffff; --surface2:#f7f9fd;
+  --border:rgba(15,23,42,0.08); --border2:rgba(59,130,246,0.18);
+  --accent:#3b82f6; --accent-glow:rgba(59,130,246,0.12);
+  --red:#ef4444; --red-bg:rgba(239,68,68,0.10); --red-border:rgba(239,68,68,0.18);
+  --amber:#f59e0b; --amber-bg:rgba(245,158,11,0.10); --amber-border:rgba(245,158,11,0.18);
+  --green:#10b981; --green-bg:rgba(16,185,129,0.10); --green-border:rgba(16,185,129,0.18);
+  --purple:#8b5cf6; --purple-bg:rgba(139,92,246,0.10);
   --teal:#22d3ee;
-  --text0:#e8edf8; --text1:#a8b4cc; --text2:#6070a0; --text3:#3a4a70;
+  --text0:#0f172a; --text1:#475569; --text2:#64748b; --text3:#94a3b8;
   --mono:'JetBrains Mono',monospace; --sans:'Syne',sans-serif;
   --radius:8px; --radius-lg:12px;
 }
+html, body{transition:background .25s ease, color .25s ease}
+html[data-theme="dark"]{color-scheme:dark}
+html[data-theme="dark"],html[data-theme="dark"] body{background:#050c16 !important;color:#e2e8f0 !important}
+html[data-theme="dark"]{
+  --bg0:#07121f; --bg1:#0f172a; --bg2:#11263b; --bg3:#14243e;
+  --surface:#0f172a; --surface2:#12253b;
+  --border:rgba(148,163,184,0.18); --border2:rgba(96,165,250,0.3);
+  --accent:#60a5fa; --accent-glow:rgba(96,165,250,0.18);
+  --red:#f87171; --red-bg:rgba(248,113,113,0.12); --red-border:rgba(248,113,113,0.25);
+  --amber:#fbbf24; --amber-bg:rgba(251,191,36,0.12); --amber-border:rgba(251,191,36,0.25);
+  --green:#34d399; --green-bg:rgba(52,211,153,0.12); --green-border:rgba(52,211,153,0.25);
+  --purple:#a78bfa; --purple-bg:rgba(167,139,250,0.12);
+  --teal:#2dd4bf;
+  --text0:#e2e8f0; --text1:#cbd5e1; --text2:#94a3b8; --text3:#64748b;
+}
+.theme-toggle{font-family:var(--mono);font-size:11px;padding:7px 12px;border-radius:6px;border:1px solid var(--border2);background:var(--surface);color:var(--text1);cursor:pointer;transition:all .2s;white-space:nowrap}
+.theme-toggle:hover{background:var(--bg2);color:var(--text0)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--sans);background:var(--bg0);color:var(--text0);min-height:100vh;overflow-x:hidden}
-body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:1000}
+html,body{min-height:100vh;color-scheme: light;forced-color-adjust: none;}
+body, html{background-image:linear-gradient(var(--bg0),var(--bg0)) !important;}
+body{font-family:var(--sans);font-size:15px;line-height:1.55;background:var(--bg0);background-color:var(--bg0);color:var(--text0);overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(15,23,42,0.02) 2px,rgba(15,23,42,0.02) 4px);pointer-events:none;z-index:1000}
 
 /* Loading overlay */
 #loading-overlay{position:fixed;inset:0;background:var(--bg0);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .5s ease}
@@ -38,10 +64,10 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .loading-error{font-family:var(--mono);font-size:11px;color:var(--red);background:var(--red-bg);border:1px solid var(--red-border);padding:10px 16px;border-radius:6px;margin-top:8px;display:none;max-width:360px;text-align:center;line-height:1.6}
 
 /* Layout */
-.shell{display:grid;grid-template-columns:220px 1fr;grid-template-rows:52px 1fr;height:100vh;overflow:hidden}
+.shell{display:grid;grid-template-columns:220px 1fr;grid-template-rows:52px 1fr;height:100vh;overflow:hidden;background:var(--bg0);background-color:var(--bg0)}
 
 /* Topbar */
-.topbar{grid-column:1/-1;background:var(--bg1);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:relative;z-index:10}
+.topbar{grid-column:1/-1;background:var(--bg1);background-color:var(--bg1);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:relative;z-index:10}
 .topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.5}
 .brand{display:flex;align-items:center;gap:10px}
 .brand-icon{width:28px;height:28px;border:1.5px solid var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center}
@@ -53,18 +79,20 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .tb-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
 .tb-amber{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
 .tb-purple{background:var(--purple-bg);color:var(--purple);border:1px solid rgba(167,139,250,.28)}
-.topbar-meta{font-family:var(--mono);font-size:10px;color:var(--text2);display:flex;align-items:center;gap:16px}
+.topbar-meta{font-family:var(--mono);font-size:11px;color:var(--text2);display:flex;align-items:center;gap:16px}
 .topbar-meta span{display:flex;align-items:center;gap:5px}
+.dataset-selector{font-family:var(--mono);font-size:11px;display:inline-flex;align-items:center;gap:6px;color:var(--text2)}
+.dataset-selector select{padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:var(--text1);font-family:var(--mono);font-size:11px;cursor:pointer}
 .dot-live{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s ease-in-out infinite;box-shadow:0 0 6px var(--green)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
 /* Sidebar */
-.sidebar{background:var(--bg1);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;padding:16px 0}
+.sidebar{background:var(--bg1);background-color:var(--bg1);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;padding:16px 0}
 .sidebar::-webkit-scrollbar{width:3px}
 .sidebar::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 .sidebar-section{padding:0 14px;margin-bottom:4px}
 .sidebar-label{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--text3);text-transform:uppercase;padding:10px 8px 6px}
-.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;cursor:pointer;transition:all .15s;position:relative;font-size:13px;color:var(--text1);margin-bottom:1px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:6px;cursor:pointer;transition:all .15s;position:relative;font-size:14px;color:var(--text1);margin-bottom:1px}
 .nav-item:hover{background:var(--surface);color:var(--text0)}
 .nav-item.active{background:var(--surface);color:var(--text0);font-weight:600}
 .nav-item.active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:2px;background:var(--accent);border-radius:2px;box-shadow:0 0 8px var(--accent)}
@@ -80,7 +108,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .cluster-info strong{color:var(--accent);font-weight:500}
 
 /* Main */
-.main{overflow-y:auto;padding:24px;background:var(--bg0);display:flex;flex-direction:column;gap:20px}
+.main{overflow-y:auto;padding:24px;background:var(--bg0);background-color:var(--bg0);display:flex;flex-direction:column;gap:20px}
 .main::-webkit-scrollbar{width:4px}
 .main::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 .panel{display:none;flex-direction:column;gap:20px}
@@ -94,28 +122,28 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .panel.active>*:nth-child(5){animation-delay:.20s}
 
 .page-header{display:flex;align-items:center;justify-content:space-between}
-.page-title{font-size:20px;font-weight:800;color:var(--text0);letter-spacing:-.01em}
-.page-subtitle{font-family:var(--mono);font-size:11px;color:var(--text2);margin-top:2px}
+.page-title{font-size:24px;font-weight:800;color:var(--text0);letter-spacing:-.01em}
+.page-subtitle{font-family:var(--mono);font-size:12px;color:var(--text2);margin-top:4px}
 
 .metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.metric-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;position:relative;overflow:hidden;transition:border-color .2s}
+.metric-card{background:var(--bg2);background-color:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;position:relative;overflow:hidden;transition:border-color .2s}
 .metric-card:hover{border-color:var(--border2)}
 .metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
 .mc-red::before{background:linear-gradient(90deg,var(--red),transparent)}
 .mc-amber::before{background:linear-gradient(90deg,var(--amber),transparent)}
 .mc-green::before{background:linear-gradient(90deg,var(--green),transparent)}
 .mc-blue::before{background:linear-gradient(90deg,var(--accent),transparent)}
-.metric-label{font-family:var(--mono);font-size:10px;color:var(--text2);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}
-.metric-value{font-size:30px;font-weight:800;line-height:1;margin-bottom:4px}
-.metric-sub{font-family:var(--mono);font-size:10px;color:var(--text2)}
+.metric-label{font-family:var(--mono);font-size:11px;color:var(--text2);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}
+.metric-value{font-size:32px;font-weight:800;line-height:1;margin-bottom:4px}
+.metric-sub{font-family:var(--mono);font-size:11px;color:var(--text2)}
 .mv-red{color:var(--red)} .mv-amber{color:var(--amber)} .mv-green{color:var(--green)} .mv-accent{color:var(--accent)}
 
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;transition:border-color .2s}
+.card{background:var(--bg2);background-color:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;transition:border-color .2s}
 .card:hover{border-color:var(--border2)}
 .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-.card-title{font-size:13px;font-weight:700;color:var(--text0)}
-.card-subtitle{font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:2px}
+.card-title{font-size:15px;font-weight:700;color:var(--text0)}
+.card-subtitle{font-family:var(--mono);font-size:11px;color:var(--text2);margin-top:4px}
 
 .badge{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .badge-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
@@ -126,7 +154,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 
 .path-item{border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
 .path-item:last-child{margin-bottom:0}
-.path-item:hover{border-color:var(--border2);background:var(--bg3)}
+.path-item:hover{border-color:var(--border2);background:var(--bg3);background-color:var(--bg3)}
 .path-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px}
 .pi-critical::before{background:var(--red);box-shadow:0 0 8px var(--red)}
 .pi-high::before{background:var(--amber);box-shadow:0 0 8px var(--amber)}
@@ -214,12 +242,12 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .timeline-desc{font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.6}
 
 .tab-row{display:flex;border-bottom:1px solid var(--border);margin-bottom:14px}
-.tab-btn{font-family:var(--mono);font-size:11px;padding:8px 14px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;letter-spacing:.06em}
+.tab-btn{font-family:var(--mono);font-size:12px;padding:10px 16px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;letter-spacing:.06em}
 .tab-btn:hover{color:var(--text1)}
 .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
 
 .filter-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
-.filter-btn{font-family:var(--mono);font-size:10px;padding:5px 12px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:transparent;color:var(--text2);letter-spacing:.06em;transition:all .15s}
+.filter-btn{font-family:var(--mono);font-size:11px;padding:7px 14px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;background:transparent;color:var(--text2);letter-spacing:.06em;transition:all .15s}
 .filter-btn:hover{color:var(--text1);background:var(--surface)}
 .filter-btn.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
 
@@ -228,18 +256,20 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 
 .chart-wrap{position:relative;width:100%}
 
-#graph-svg{width:100%;height:520px;display:block;background:var(--bg1);cursor:grab}
-#node-tooltip{display:none;position:absolute;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;pointer-events:none;z-index:100;min-width:200px}
+#graph-svg{width:100%;height:780px;display:block;background:var(--bg1);background-color:var(--bg1);cursor:grab}
+#node-tooltip{display:none;position:absolute;background:var(--bg3);background-color:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;pointer-events:none;z-index:100;min-width:200px}
 .tt-name{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--text0);margin-bottom:6px}
 .tt-body{font-family:var(--mono);font-size:10px;color:var(--text2);line-height:1.8}
 
 @media(max-width:900px){
+  body{font-size:14px}
   .metrics-grid{grid-template-columns:repeat(2,1fr)}
   .row2{grid-template-columns:1fr}
   .shell{grid-template-columns:1fr;grid-template-rows:52px auto 1fr}
   .sidebar{flex-direction:row;overflow-x:auto;padding:8px;border-right:none;border-bottom:1px solid var(--border)}
   .sidebar-label,.sidebar-footer{display:none}
   .sidebar-section{display:flex;gap:4px}
+  #graph-svg{height:520px}
 }
 </style>
 </head>
@@ -276,6 +306,11 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <span id="meta-cluster">—</span>
     <span id="meta-counts">— nodes · — edges</span>
     <span id="meta-scan">—</span>
+    <label class="dataset-selector">
+      Dataset
+      <select id="dataset-select" onchange="switchDataset(this.value)"></select>
+    </label>
+    <button id="theme-toggle" class="theme-toggle" type="button" onclick="toggleTheme()" title="Switch theme">Dark</button>
   </div>
 </header>
 
@@ -566,8 +601,44 @@ let pathFilter = 'all';
 let graphInited = false;
 let sim, svgSel, zoomBeh, linkSel, nodeSel, labelSel;
 
+const BASE_DATASET_FILE = 'mock_cluster.json';
+const DATASETS = Array.from({ length: 8 }, (_, idx) => ({
+  id: `variant-${idx + 1}`,
+  label: `Dataset ${idx + 1}`,
+}));
+let selectedDataset = DATASETS[0].id;
+
 // Chart registry for destroy-on-reinit
 const CHARTS = {};
+const THEME_KEY = 'kapv-ui-theme';
+
+function getPreferredTheme() {
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    if (stored === 'light' || stored === 'dark') return stored;
+  } catch (e) {}
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+  const resolved = theme || getPreferredTheme();
+  const root = document.documentElement;
+  root.dataset.theme = resolved;
+  const toggle = document.getElementById('theme-toggle');
+  if (toggle) {
+    toggle.textContent = resolved === 'dark' ? 'Light' : 'Dark';
+    toggle.title = resolved === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+  }
+  try {
+    localStorage.setItem(THEME_KEY, resolved);
+  } catch (e) {}
+}
+
+function toggleTheme() {
+  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+}
+
+applyTheme();
 
 // ─── Boot: fetch cluster data ──────────────────────────────────────────────
 async function boot() {
@@ -594,15 +665,16 @@ async function boot() {
   }, 320);
 
   try {
-    const res = await fetch('mock_cluster.json');
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    CLUSTER = await res.json();
+    populateDatasetSelect();
+    selectedDataset = getRandomDataset();
+    document.getElementById('dataset-select').value = selectedDataset;
+    await loadDataset(selectedDataset);
 
     clearInterval(tick);
     bar.style.width = '100%';
     msg.textContent = 'Ready.';
 
-    COMPUTED = computeAnalytics(CLUSTER);
+    setDatasetMeta(selectedDataset);
     populateUI();
 
     setTimeout(() => {
@@ -615,11 +687,159 @@ async function boot() {
     bar.style.background = 'var(--red)';
     msg.textContent = 'Failed to load cluster data';
     errEl.style.display = 'block';
-    errEl.textContent = `Error: ${err.message}\n\nMake sure mock_cluster.json is in the same directory as this HTML file and served over HTTP (not file://).`;
+    errEl.textContent = `Error: ${err.message}\n\nMake sure the selected dataset JSON is in the same directory as this HTML file and served over HTTP (not file://).`;
   }
 }
 
+function populateDatasetSelect() {
+  const select = document.getElementById('dataset-select');
+  if (!select) return;
+  select.innerHTML = '';
+  DATASETS.forEach(ds => {
+    const opt = document.createElement('option');
+    opt.value = ds.id;
+    opt.textContent = ds.label;
+    select.appendChild(opt);
+  });
+  select.value = selectedDataset;
+}
+
+function setDatasetMeta(datasetId) {
+  const displayName = DATASETS.find(ds => ds.id === datasetId)?.label || datasetId;
+  const meta = document.getElementById('meta-cluster');
+  if (meta) meta.textContent = displayName;
+}
+
+function getRandomDataset() {
+  return DATASETS[Math.floor(Math.random() * DATASETS.length)].id;
+}
+
+async function loadDataset(datasetId) {
+  const res = await fetch(BASE_DATASET_FILE);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  const baseData = await res.json();
+  CLUSTER = generateDatasetVariant(baseData, datasetId);
+  CLUSTER = randomizeMockData(CLUSTER);
+  COMPUTED = computeAnalytics(CLUSTER);
+}
+
+function switchDataset(datasetId) {
+  selectedDataset = datasetId;
+  loadDataset(datasetId)
+    .then(() => {
+      setDatasetMeta(datasetId);
+      populateUI();
+    })
+    .catch(err => console.error('Dataset load failed', err));
+}
+
+function generateDatasetVariant(data, datasetId) {
+  const variantIndex = parseInt(datasetId.split('-')[1], 10) || 1;
+  const clone = JSON.parse(JSON.stringify(data));
+
+  clone.nodes.forEach((node, idx) => {
+    const delta = ((variantIndex - 1) * 0.5) * Math.sin((idx + 1) * 0.45 + variantIndex);
+    node.risk = Math.max(1.0, Math.min(10.0, Math.round((node.risk + delta) * 10) / 10));
+    if (variantIndex % 2 === 0 && idx % variantIndex === 0 && !node.entry && !node.crown) {
+      node.risk = Math.min(10, node.risk + 1.2);
+    }
+    if (variantIndex % 3 === 0 && idx % 5 === 0 && !node.crown) {
+      node.cves = node.cves && node.cves.length ? node.cves : [`CVE-2025-${1000 + idx}`];
+    }
+  });
+
+  clone.edges.forEach((edge, idx) => {
+    const delta = ((variantIndex - 1) * 0.4) * Math.cos((idx + 2) * 0.33 + variantIndex);
+    edge.cvss = Math.max(0, Math.min(10, Math.round((edge.cvss + delta) * 10) / 10));
+    edge.weight = Math.max(0.5, Math.min(10.0, Math.round((edge.weight + delta * 0.2) * 10) / 10));
+    if (variantIndex % 4 === 0 && idx % 7 === 0) {
+      edge.misconfig = !edge.misconfig;
+    }
+  });
+
+  if (variantIndex >= 2) {
+    const extraNodes = [];
+    for (let i = 0; i < variantIndex - 1; i++) {
+      const id = `variant-node-${variantIndex}-${i}`;
+      extraNodes.push({
+        id,
+        type: 'Pod',
+        namespace: 'variant',
+        risk: Math.min(10, 5 + variantIndex * 0.5 + i),
+        entry: false,
+        crown: false,
+        cves: [],
+      });
+    }
+    clone.nodes.push(...extraNodes);
+    extraNodes.forEach((node, i) => {
+      const target = clone.nodes[(i * 3) % clone.nodes.length].id;
+      clone.edges.push({
+        src: node.id,
+        dst: target,
+        rel: 'connects_to',
+        weight: 1.0 + variantIndex * 0.2,
+        cvss: 4.0 + variantIndex * 0.5,
+        misconfig: variantIndex % 2 === 0,
+      });
+    });
+  }
+
+  if (variantIndex % 2 === 1 && clone.edges.length > 30) {
+    clone.edges.splice(0, Math.min(variantIndex, 3));
+  }
+
+  return clone;
+}
+
 // ─── Analytics engine ──────────────────────────────────────────────────────
+function randomizeMockData(data) {
+  const nodeNoise = () => (Math.random() - 0.5) * 4.0;
+  const edgeNoise = () => (Math.random() - 0.5) * 1.8;
+
+  data.nodes.forEach(n => {
+    n.risk = Math.max(1.0, Math.min(10.0, Math.round((n.risk + nodeNoise()) * 10) / 10));
+    if (Math.random() < 0.12) {
+      n.cves = n.cves && n.cves.length ? n.cves : [
+        'CVE-2025-' + Math.floor(1000 + Math.random() * 9000)
+      ];
+    }
+  });
+
+  data.edges.forEach(e => {
+    e.cvss = Math.max(0, Math.min(10, Math.round((e.cvss + edgeNoise()) * 10) / 10));
+    e.weight = Math.max(0.5, Math.min(10.0, Math.round((e.weight + edgeNoise() * 0.3) * 10) / 10));
+    if (Math.random() < 0.08) e.misconfig = !e.misconfig;
+  });
+
+  // Add or remove a small number of optional edges to change attack paths.
+  const nodeIds = data.nodes.map(n => n.id);
+  for (let i = 0; i < 2; i++) {
+    if (Math.random() < 0.35) {
+      const src = nodeIds[Math.floor(Math.random() * nodeIds.length)];
+      const dst = nodeIds[Math.floor(Math.random() * nodeIds.length)];
+      if (src !== dst && !data.edges.find(e => e.src === src && e.dst === dst)) {
+        data.edges.push({
+          src,
+          dst,
+          rel: 'inferred',
+          weight: Math.round((1 + Math.random() * 3) * 10) / 10,
+          cvss: Math.round((2 + Math.random() * 6) * 10) / 10,
+          misconfig: Math.random() < 0.25
+        });
+      }
+    }
+  }
+
+  for (let i = data.edges.length - 1; i >= 0; i--) {
+    if (Math.random() < 0.04 && data.edges.length > 30) {
+      data.edges.splice(i, 1);
+    }
+  }
+
+  return data;
+}
+
 function computeAnalytics(data) {
   const nodes = data.nodes;
   const edges = data.edges;

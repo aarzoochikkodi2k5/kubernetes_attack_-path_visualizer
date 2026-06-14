@@ -135,7 +135,7 @@ def train_risk_model(G: nx.DiGraph) -> Dict:
         learning_rate   = 0.1,
         use_label_encoder = False,
         eval_metric     = "logloss",
-        random_state    = 42,
+        random_state    = None,
     )
     model.fit(X_scaled, y)
 

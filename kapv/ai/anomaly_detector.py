@@ -34,7 +34,7 @@ def detect_anomalous_nodes(G, feature_data: np.ndarray, node_ids: List[str]) -> 
     iso = IsolationForest(
         n_estimators  = 200,
         contamination = 0.1,    # Assume 10% of nodes are anomalous
-        random_state  = 42,
+        random_state  = None,
     )
     iso.fit(X)
 

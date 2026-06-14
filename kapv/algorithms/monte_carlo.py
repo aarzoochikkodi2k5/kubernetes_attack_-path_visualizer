@@ -71,7 +71,7 @@ def monte_carlo_attack(
     
     Output: per-crown-jewel compromise probability with 95% CI.
     """
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng()
 
     reach_counts    = defaultdict(int)   # crown jewel → times reached
     hop_counts      = defaultdict(list)  # crown jewel → hops taken
