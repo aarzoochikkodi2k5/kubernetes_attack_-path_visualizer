@@ -1,29 +1,27 @@
 # Kubernetes Attack Path Visualizer (KAPV)
 
-A graph-based security analysis tool that models Kubernetes RBAC 
-configurations as a directed weighted graph and automatically discovers 
+A graph-based security analysis tool that models Kubernetes RBAC
+configurations as a directed weighted graph and automatically discovers
 multi-hop privilege escalation paths, cycles, and critical nodes.
 
 ---
 
-## Demo
-
-![KAPV Dashboard](kapv/kapv_dashboard.html)
-
----
-
 ## Project Structure
+
+```text
 kubernetes_attack_path_visualizer/
-├── ai/                     # XGBoost + Isolation Forest anomaly detection
-├── algorithms/             # BFS, Dijkstra, A*, DFS, PageRank,
-│                           # Betweenness, Louvain, Monte Carlo
-├── graph/                  # Graph builder from cluster JSON
-├── ingestion/              # Cluster data ingestion layer
-├── kapv/                   # Dashboard HTML + result analysis PPT
-├── reporting/              # Kill chain report generator
-├── main.py                 # Entry point — runs full analysis
-├── mock_cluster.json       # 100-node synthetic K8s cluster dataset
-└── dashboard.html          # Interactive D3.js visualization
+├── ai/               # XGBoost + Isolation Forest anomaly detection
+├── algorithms/       # BFS, Dijkstra, A*, DFS, PageRank,
+│                     # Betweenness, Louvain, Monte Carlo
+├── graph/            # Graph builder from cluster JSON
+├── ingestion/        # Cluster data ingestion layer
+├── kapv/             # Dashboard HTML + result analysis PPT
+├── reporting/        # Kill chain report generator
+├── main.py           # Entry point — runs full analysis
+├── mock_cluster.json # 100-node synthetic K8s cluster dataset
+└── dashboard.html    # Interactive D3.js visualization
+```
+
 ---
 
 ## What It Does
@@ -42,27 +40,30 @@ kubernetes_attack_path_visualizer/
 | Isolation Forest | Unsupervised anomaly detection |
 
 ---
-Nodes        : 100
-Edges        : 144
-Entry points : 12  (LoadBalancers + Users)
-Crown jewels : 6   (Databases + Master secrets)
-Namespaces   : 15
-Misconfigs   : 29
 
 ## Dataset — mock_cluster.json
+
+| Property | Value |
+|----------|-------|
+| Nodes | 100 |
+| Edges | 144 |
+| Entry points | 12 (LoadBalancers + Users) |
+| Crown jewels | 6 (Databases + Master secrets) |
+| Namespaces | 15 |
+| Misconfigs | 29 |
 
 ---
 
 ## Key Results
-Attack paths found   : 6  (2 Critical · 2 High · 2 Medium)
-Highest risk path    : lb-admin → pod-admin-panel → sa-admin
-→ clusterrole-admin → db-production
-(4 hops · risk score 27.3)
-Privilege cycles     : 3  (7 nodes affected)
-Max blast radius     : 18 nodes (lb-admin · 3 hops)
-Compromise prob.     : 81% for db-production (Monte Carlo · 10k sims)
-Top PageRank node    : clusterrole-admin (0.0921)
-→ removing 2 bindings eliminates 4/6 paths
+
+| Metric | Result |
+|--------|--------|
+| Attack paths found | 6 (2 Critical · 2 High · 2 Medium) |
+| Highest risk path | lb-admin → pod-admin-panel → sa-admin → clusterrole-admin → db-production (4 hops · score 27.3) |
+| Privilege cycles | 3 (7 nodes affected) |
+| Max blast radius | 18 nodes (lb-admin · 3 hops) |
+| Compromise probability | 81% for db-production (Monte Carlo · 10k sims) |
+| Top PageRank node | clusterrole-admin (0.0921) → removing 2 bindings eliminates 4/6 paths |
 
 ---
 
@@ -105,11 +106,14 @@ python -m http.server 8000
 ---
 
 ## Tech Stack
-Language      : Python 3
-Graph library : NetworkX
-Visualization : D3.js · Chart.js · HTML5/CSS3
-AI / ML       : XGBoost · Scikit-learn (Isolation Forest)
-Data format   : JSON
+
+| Layer | Tool |
+|-------|------|
+| Language | Python 3 |
+| Graph library | NetworkX |
+| Visualization | D3.js · Chart.js · HTML5/CSS3 |
+| AI / ML | XGBoost · Scikit-learn (Isolation Forest) |
+| Data format | JSON |
 
 ---
 
@@ -117,7 +121,7 @@ Data format   : JSON
 
 | Metric | Base Paper (Sheyner et al. 2002) | KAPV |
 |--------|----------------------------------|------|
-| Attack paths detected | 2 / 6 (33%) | 6 / 6 (100%) |
+| Attack paths detected | 2/6 (33%) | 6/6 (100%) |
 | Analysis time | ~180 min | ~3 min |
 | Multi-hop detection | ✗ | ✓ Up to 7 hops |
 | Privilege cycles | ✗ | ✓ 3 detected |
@@ -142,4 +146,3 @@ Data format   : JSON
 **Aarzoo Chikkodi**  
 3rd Year B.Tech CSE · KLE Technological University, Hubli  
 Minor Project · Nokia Hackathon Problem Statement
-
