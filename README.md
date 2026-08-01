@@ -23,11 +23,11 @@ kubernetes_attack_path_visualizer/
 ```
 
 ---
-![Screenshot 1](kapv/8.png)
-![Screenshot 2](kapv/7.png)
-![Screenshot 3](kapv/6.png)
-![Screenshot 4](kapv/5.png)
-![Screenshot 5](kapv/4.png)
+![Screenshot 1](kapv/8_page-0001.jpg)
+![Screenshot 2](kapv/7_page-0001.jpg)
+![Screenshot 3](kapv/6_page-0001.jpg)
+![Screenshot 4](kapv/5_page-0001.jpg )
+![Screenshot 5]( kapv/4_page-0001.jpg)
 
 ## What It Does
 
