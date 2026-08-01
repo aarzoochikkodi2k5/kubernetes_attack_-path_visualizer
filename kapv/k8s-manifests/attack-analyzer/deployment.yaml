@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kapv-analyzer
+  namespace: security
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kapv-analyzer
+  template:
+    metadata:
+      labels:
+        app: kapv-analyzer
+    spec:
+      containers:
+      - name: analyzer
+        image: kapv-analyzer:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kapv-analyzer-svc
+  namespace: security
+spec:
+  selector:
+    app: kapv-analyzer
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: NodePort

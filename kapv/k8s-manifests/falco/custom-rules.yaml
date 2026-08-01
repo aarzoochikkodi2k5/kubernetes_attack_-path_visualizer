@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-custom-rules
+  namespace: falco
+data:
+  custom_rules.yaml: |
+
+    - rule: Shell Spawned in Container
+      desc: Possible container escape attempt
+      condition: spawned_process and container and shell_procs
+      output: >
+        Shell spawned (user=%user.name
+        container=%container.name
+        image=%container.image.repository)
+      priority: WARNING
+      tags: [container, kapv]
+
+    - rule: Sensitive File Read
+      desc: Attacker reading sensitive files
+      condition: >
+        open_read and container
+        and (fd.name startswith /etc/shadow
+          or fd.name startswith /etc/passwd)
+      output: >
+        Sensitive file read (file=%fd.name
+        container=%container.name)
+      priority: ERROR
+      tags: [filesystem, kapv]

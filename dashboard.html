@@ -506,6 +506,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 </div>
 
 <!-- ══ AI / ML ══ -->
+<!-- ══ AI / ML ══ -->
 <div class="panel" id="panel-ai">
   <div class="page-header">
     <div><div class="page-title">AI / ML layer</div><div class="page-subtitle">XGBoost predictive risk · Isolation Forest reactive anomaly · GraphSAGE link prediction</div></div>
@@ -514,6 +515,24 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <div class="card">
       <div class="card-header"><div class="card-title">XGBoost — predicted high-risk nodes</div><span class="badge badge-accent">PREDICTIVE</span></div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:12px">Self-supervised model trained on graph structural features · predicts risk before compromise occurs</div>
+      <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="background:var(--surface2);border-radius:8px;padding:12px 20px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:var(--green)">90%</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">ACCURACY</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:12px 20px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:var(--green)">1.00</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">PRECISION</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:12px 20px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:var(--amber)">0.88</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">F1 SCORE</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:12px 20px;text-align:center">
+          <div style="font-size:22px;font-weight:800;color:var(--accent)">0.61</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">CV F1 (5-FOLD)</div>
+        </div>
+      </div>
       <div id="xgb-rows"></div>
     </div>
     <div class="card">

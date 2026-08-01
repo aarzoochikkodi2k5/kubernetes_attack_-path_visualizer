@@ -15,6 +15,7 @@ produces feature importances, and is interpretable via SHAP.
 
 import networkx as nx
 import numpy as np
+from collections import Counter
 from typing import Dict, List, Tuple
 import warnings
 warnings.filterwarnings("ignore")
@@ -31,34 +32,57 @@ def extract_node_features(G: nx.DiGraph) -> Tuple[np.ndarray, List[str], List[st
     5. is_misconfig_neighbor  — has misconfigured edges
     6. pagerank               — structural importance
     7. clustering_coef        — local graph density (undirected)
-    8. in_edge_avg_cvss       — average CVSS of incoming edges
-    9. is_in_cycle            — participates in a permission cycle
-    10. namespace_entropy     — is the node in a high-traffic namespace?
+    8. avg_in_cvss            — average CVSS of incoming edges
+    9. is_crown               — crown jewel status
+    10. is_entry              — cluster entry point
+    11. betweenness           — betweenness centrality
+    12. closeness             — closeness centrality
+    13. namespace_size        — nodes in same namespace
+    14. namespace_avg_risk    — avg risk for namespace
+    15. entity_type_code      — encoded node type
+    16. in_cycle              — participates in a permission cycle
+    17. out_edge_weight_avg   — average outgoing weight
     """
     pr = nx.pagerank(G, weight="weight")
     UG = G.to_undirected()
     cc = nx.clustering(UG)
+    bc = nx.betweenness_centrality(G, weight="weight", normalized=True)
+    closeness = nx.closeness_centrality(G)
 
     # Precompute cycles
     cycle_nodes = set()
     for cycle in nx.simple_cycles(G):
         cycle_nodes.update(cycle)
 
+    namespaces = [d.get("namespace", "") for _, d in G.nodes(data=True)]
+    namespace_counts = Counter(namespaces)
+    namespace_risks = {}
+    for _, d in G.nodes(data=True):
+        ns = d.get("namespace", "")
+        namespace_risks.setdefault(ns, []).append(d.get("risk_score", d.get("risk", 0)))
+    namespace_avg_risk = {ns: np.mean(vals) for ns, vals in namespace_risks.items()}
+
+    entity_types = sorted({d.get("entity_type", "") for _, d in G.nodes(data=True)})
+    entity_type_code = {t: i for i, t in enumerate(entity_types, start=1)}
+
     feature_matrix = []
     node_ids = []
     feature_names = [
         "in_degree", "out_degree", "risk_score", "num_cves",
         "misconfig_edge", "pagerank", "clustering_coef",
-        "avg_in_cvss", "in_cycle", "out_edge_weight_avg"
+        "avg_in_cvss", "is_crown", "is_entry",
+        "betweenness", "closeness", "namespace_size",
+        "namespace_avg_risk", "entity_type_code", "in_cycle",
+        "out_edge_weight_avg"
     ]
 
     for node in G.nodes():
         d = G.nodes[node]
-        in_edges  = list(G.in_edges(node, data=True))
+        in_edges = list(G.in_edges(node, data=True))
         out_edges = list(G.out_edges(node, data=True))
 
-        in_cvss = ([e[2].get("cvss", 0) for e in in_edges])
-        out_w   = ([e[2].get("weight", 0) for e in out_edges])
+        in_cvss = [e[2].get("cvss", 0) for e in in_edges]
+        out_w = [e[2].get("weight", 0) for e in out_edges]
         misconfig = any(e[2].get("misconfig", False) for e in in_edges + out_edges)
 
         features = [
@@ -70,6 +94,13 @@ def extract_node_features(G: nx.DiGraph) -> Tuple[np.ndarray, List[str], List[st
             pr.get(node, 0),
             cc.get(node, 0),
             np.mean(in_cvss) if in_cvss else 0,
+            int(d.get("crown", False)),
+            int(d.get("entry", False)),
+            bc.get(node, 0),
+            closeness.get(node, 0),
+            namespace_counts.get(d.get("namespace", ""), 0),
+            namespace_avg_risk.get(d.get("namespace", ""), 0),
+            entity_type_code.get(d.get("entity_type", ""), 0),
             int(node in cycle_nodes),
             np.mean(out_w) if out_w else 0,
         ]

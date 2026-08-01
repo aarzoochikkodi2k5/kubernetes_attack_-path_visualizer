@@ -1,9 +1,7 @@
-# graph/builder.py
-
 import networkx as nx
 from typing import Dict, Any
 from graph.schema import NodeData, EdgeData, EntityType, RelationshipType
-from ingestion.mock_loader import MOCK_CLUSTER
+from ingestion.mock_loader import load_mock_cluster
 
 class ClusterGraph:
     """
@@ -19,7 +17,7 @@ class ClusterGraph:
         self.entry_points  = []
 
     def build_from_mock(self) -> None:
-        data = MOCK_CLUSTER
+        data = load_mock_cluster()
         self._load_nodes(data["nodes"])
         self._load_edges(data["edges"])
         self.crown_jewels = [n for n, d in self.G.nodes(data=True) if d.get("crown")]
@@ -42,7 +40,7 @@ class ClusterGraph:
             self.G.add_edge(
                 e["src"], e["dst"],
                 relationship = e["rel"],
-                weight       = e["weight"],   # exploitability cost
+                weight       = e["weight"],
                 cvss         = e.get("cvss", 0.0),
                 misconfig    = e.get("misconfig", False),
             )

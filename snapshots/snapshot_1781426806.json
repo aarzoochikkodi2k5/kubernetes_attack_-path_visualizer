@@ -1,0 +1,436 @@
+{
+  "timestamp": "2026-06-14T14:16:46.224289",
+  "unix_time": 1781426806.224299,
+  "total_nodes": 98,
+  "total_edges": 111,
+  "attack_paths_count": 28,
+  "privilege_cycles": 2,
+  "monte_carlo_risk": 0.0036,
+  "pagerank_scores": {
+    "lb-frontend": 0.004166969182179344,
+    "lb-api-gateway": 0.003778052058509271,
+    "lb-ingress-ext": 0.0030557774002648525,
+    "user-dev1": 0.002222383563828983,
+    "user-dev2": 0.0019445856183503605,
+    "user-ci-bot": 0.0033335753457434747,
+    "user-admin": 0.0050003630186152125,
+    "user-readonly": 0.0008333938364358687,
+    "pod-frontend": 0.014172905844994147,
+    "pod-frontend-2": 0.007589440621419486,
+    "pod-backend": 0.012807529135582314,
+    "pod-backend-2": 0.004910079272204694,
+    "pod-worker": 0.003326630612953364,
+    "pod-worker-2": 0.00315995184566619,
+    "pod-ci-runner": 0.036673312680266544,
+    "pod-ci-runner-2": 0.013152747660794065,
+    "pod-logger": 0.0016667876728717374,
+    "pod-monitor": 0.005528179978412014,
+    "pod-metrics": 0.0019445856183503605,
+    "pod-cache": 0.004547064720825557,
+    "pod-queue": 0.00482486266630418,
+    "pod-gateway": 0.006869944042739657,
+    "pod-scheduler": 0.003889171236700721,
+    "pod-vault-agent": 0.013310137373130403,
+    "pod-etcd-proxy": 0.0050003630186152125,
+    "pod-api-server": 0.0075213799597037495,
+    "pod-controller-mgr": 0.004889243840423763,
+    "pod-dns": 0.004111410086447858,
+    "pod-admission-wh": 0.003889171236700721,
+    "pod-opa-gatekeeper": 0.0027779794547862294,
+    "sa-frontend": 0.013244659934462298,
+    "sa-backend": 0.036841387570576666,
+    "sa-worker": 0.007735979074152913,
+    "sa-ci": 0.03617264919879794,
+    "sa-ci-2": 0.01534676858009154,
+    "sa-logger": 0.004778125402278673,
+    "sa-monitor": 0.008852031886473748,
+    "sa-vault": 0.015758381515260027,
+    "sa-etcd": 0.009528470639986302,
+    "sa-admission": 0.00708575786262955,
+    "sa-gateway": 0.009173027297294101,
+    "sa-scheduler": 0.007194967651283752,
+    "sa-queue": 0.00715691170903884,
+    "role-secret-reader": 0.007641825152312441,
+    "role-pod-exec": 0.04354294168003405,
+    "role-log-reader": 0.00572819357781104,
+    "role-ci-deploy": 0.010035093290572342,
+    "role-ci-read": 0.01582278241432761,
+    "role-vault-read": 0.01811719255725864,
+    "role-node-proxy": 0.013099562556306722,
+    "role-metrics-reader": 0.005706699489190286,
+    "role-configmap-rw": 0.008583555483669847,
+    "role-ingress-ctrl": 0.01113064953691638,
+    "clusterrole-admin": 0.021363414788365412,
+    "clusterrole-view": 0.004873305652754417,
+    "clusterrole-node-reader": 0.003611373291222098,
+    "clusterrole-psp": 0.006250454389974314,
+    "secret-db-creds": 0.0258821664298473,
+    "secret-api-key": 0.01974625091011398,
+    "secret-tls-cert": 0.007349231456041253,
+    "secret-ci-token": 0.010590689181529587,
+    "secret-ci-deploy-key": 0.010312891236050963,
+    "secret-vault-token": 0.026268096639521413,
+    "secret-etcd-cert": 0.011608924026630042,
+    "secret-webhook-cert": 0.010518819559345485,
+    "secret-registry-pull": 0.007349231456041253,
+    "secret-grafana-admin": 0.003889171236700721,
+    "cm-db-config": 0.00963135922530996,
+    "cm-app-config": 0.002602479102475197,
+    "cm-nginx-conf": 0.0019445856183503605,
+    "cm-ci-pipeline": 0.009727095353060882,
+    "cm-vault-config": 0.003889171236700721,
+    "cm-coredns": 0.002222383563828983,
+    "pv-db-data": 0.009250672694507682,
+    "pv-etcd-data": 0.005555958909572459,
+    "pvc-db-prod": 0.0050003630186152125,
+    "netpol-default-deny": 0.0005555958909572458,
+    "netpol-ci-allow": 0.002222383563828983,
+    "svc-frontend": 0.0027779794547862294,
+    "svc-backend": 0.0025001815093076063,
+    "svc-db": 0.006681698108499024,
+    "svc-vault": 0.006213852393697294,
+    "node-worker-1": 0.0033335753457434747,
+    "node-worker-2": 0.0033335753457434747,
+    "node-master-1": 0.005278160964093835,
+    "ingress-nginx": 0.006208784759823051,
+    "hpa-frontend": 0.0011111917819144916,
+    "deploy-frontend": 0.0042780886070529125,
+    "deploy-backend": 0.0030557774002648525,
+    "deploy-ci-runner": 0.004444767127657966,
+    "cj-db-backup": 0.004166969182179344,
+    "cj-log-rotate": 0.0016667876728717374,
+    "webhook-admission": 0.007472765596762374,
+    "db-production": 0.0518713577330633,
+    "db-analytics": 0.029693536567545316,
+    "secret-master-key": 0.04823428066482247,
+    "etcd-cluster": 0.04308864456240029,
+    "vault-secrets-engine": 0.03319636412587931
+  },
+  "attack_paths": [
+    [
+      "lb-frontend",
+      "pod-frontend",
+      "sa-frontend",
+      "role-secret-reader",
+      "secret-db-creds",
+      "db-production"
+    ],
+    [
+      "lb-frontend",
+      "pod-frontend",
+      "sa-frontend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "vault-secrets-engine",
+      "secret-api-key",
+      "db-analytics"
+    ],
+    [
+      "lb-frontend",
+      "pod-frontend",
+      "sa-frontend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "clusterrole-admin",
+      "secret-master-key"
+    ],
+    [
+      "lb-frontend",
+      "pod-frontend",
+      "sa-frontend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "clusterrole-admin",
+      "etcd-cluster"
+    ],
+    [
+      "lb-frontend",
+      "pod-frontend",
+      "sa-frontend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "vault-secrets-engine"
+    ],
+    [
+      "lb-api-gateway",
+      "pod-backend",
+      "svc-db",
+      "db-production"
+    ],
+    [
+      "lb-api-gateway",
+      "pod-backend",
+      "secret-api-key",
+      "db-analytics"
+    ],
+    [
+      "lb-api-gateway",
+      "pod-backend",
+      "sa-backend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "clusterrole-admin",
+      "secret-master-key"
+    ],
+    [
+      "lb-api-gateway",
+      "pod-backend",
+      "sa-backend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "clusterrole-admin",
+      "etcd-cluster"
+    ],
+    [
+      "lb-api-gateway",
+      "pod-backend",
+      "sa-backend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "vault-secrets-engine"
+    ],
+    [
+      "lb-ingress-ext",
+      "ingress-nginx",
+      "pod-backend",
+      "svc-db",
+      "db-production"
+    ],
+    [
+      "lb-ingress-ext",
+      "ingress-nginx",
+      "pod-backend",
+      "secret-api-key",
+      "db-analytics"
+    ],
+    [
+      "lb-ingress-ext",
+      "ingress-nginx",
+      "pod-backend",
+      "sa-backend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "clusterrole-admin",
+      "secret-master-key"
+    ],
+    [
+      "lb-ingress-ext",
+      "ingress-nginx",
+      "pod-backend",
+      "sa-backend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "clusterrole-admin",
+      "etcd-cluster"
+    ],
+    [
+      "lb-ingress-ext",
+      "ingress-nginx",
+      "pod-backend",
+      "sa-backend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "vault-secrets-engine"
+    ],
+    [
+      "user-dev1",
+      "pod-backend",
+      "svc-db",
+      "db-production"
+    ],
+    [
+      "user-dev1",
+      "pod-backend",
+      "secret-api-key",
+      "db-analytics"
+    ],
+    [
+      "user-dev1",
+      "pod-backend",
+      "sa-backend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "clusterrole-admin",
+      "secret-master-key"
+    ],
+    [
+      "user-dev1",
+      "pod-backend",
+      "sa-backend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "clusterrole-admin",
+      "etcd-cluster"
+    ],
+    [
+      "user-dev1",
+      "pod-backend",
+      "sa-backend",
+      "role-pod-exec",
+      "pod-ci-runner",
+      "sa-ci",
+      "vault-secrets-engine"
+    ],
+    [
+      "user-dev2",
+      "pod-worker",
+      "sa-worker",
+      "cm-db-config",
+      "db-analytics"
+    ],
+    [
+      "user-ci-bot",
+      "pod-ci-runner",
+      "sa-ci",
+      "secret-ci-token",
+      "db-production"
+    ],
+    [
+      "user-ci-bot",
+      "pod-ci-runner",
+      "sa-ci",
+      "vault-secrets-engine",
+      "secret-api-key",
+      "db-analytics"
+    ],
+    [
+      "user-ci-bot",
+      "pod-ci-runner",
+      "sa-ci",
+      "clusterrole-admin",
+      "secret-master-key"
+    ],
+    [
+      "user-ci-bot",
+      "pod-ci-runner",
+      "sa-ci",
+      "clusterrole-admin",
+      "etcd-cluster"
+    ],
+    [
+      "user-ci-bot",
+      "pod-ci-runner",
+      "sa-ci",
+      "vault-secrets-engine"
+    ],
+    [
+      "user-admin",
+      "etcd-cluster",
+      "secret-master-key"
+    ],
+    [
+      "user-admin",
+      "etcd-cluster"
+    ]
+  ],
+  "misconfigs": [
+    [
+      "lb-frontend",
+      "pod-frontend"
+    ],
+    [
+      "lb-frontend",
+      "pod-frontend-2"
+    ],
+    [
+      "lb-api-gateway",
+      "pod-gateway"
+    ],
+    [
+      "user-admin",
+      "clusterrole-admin"
+    ],
+    [
+      "user-admin",
+      "etcd-cluster"
+    ],
+    [
+      "pod-backend",
+      "secret-api-key"
+    ],
+    [
+      "pod-controller-mgr",
+      "clusterrole-admin"
+    ],
+    [
+      "sa-frontend",
+      "role-secret-reader"
+    ],
+    [
+      "sa-frontend",
+      "role-pod-exec"
+    ],
+    [
+      "sa-backend",
+      "role-pod-exec"
+    ],
+    [
+      "sa-ci",
+      "clusterrole-admin"
+    ],
+    [
+      "sa-ci",
+      "secret-vault-token"
+    ],
+    [
+      "sa-ci",
+      "vault-secrets-engine"
+    ],
+    [
+      "sa-etcd",
+      "role-node-proxy"
+    ],
+    [
+      "sa-admission",
+      "clusterrole-admin"
+    ],
+    [
+      "role-pod-exec",
+      "pod-ci-runner"
+    ],
+    [
+      "role-pod-exec",
+      "pod-ci-runner-2"
+    ],
+    [
+      "role-pod-exec",
+      "sa-backend"
+    ],
+    [
+      "role-ci-deploy",
+      "pod-ci-runner"
+    ],
+    [
+      "role-node-proxy",
+      "etcd-cluster"
+    ],
+    [
+      "secret-ci-deploy-key",
+      "etcd-cluster"
+    ],
+    [
+      "cm-db-config",
+      "db-analytics"
+    ],
+    [
+      "cm-ci-pipeline",
+      "pod-ci-runner"
+    ],
+    [
+      "cj-db-backup",
+      "db-production"
+    ]
+  ]
+}
