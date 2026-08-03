@@ -150,5 +150,3 @@ python -m http.server 8000
 ## Author
 
 **Aarzoo Chikkodi**  
-3rd Year B.Tech CSE · KLE Technological University, Hubli  
-Minor Project · Nokia Hackathon Problem Statement
