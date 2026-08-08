@@ -27,7 +27,7 @@ kubernetes_attack_path_visualizer/
 
 ![Screenshot 2](kapv/4.png)
 ![Screenshot 3](kapv/3.png)
-![Screenshot 4](kapv/5.png)
+![Screenshot 4](kapv/5.png.png)
 ![Screenshot 5](kapv/6_1.png)
 ![Screenshot 6](kapv/7_1.png)
 
